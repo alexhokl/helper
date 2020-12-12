@@ -4,5 +4,5 @@ test:
 	go test ./...
 coverage:
 	go test --cover ./...
-coverage-view:
-	go test -coverprofile=coverage.out && go tool cover -html=coverage.out
+coverage-html:
+	go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out -o coverage.html
