@@ -25,11 +25,24 @@ func GetConnection(config *Config) (*sql.DB, error) {
 		Host:     fmt.Sprintf("%s:%d", config.Server, config.Port),
 		RawQuery: parameters.Encode(),
 	}
-	conn, err := sql.Open("sqlserver", connectionURL.String())
-	if err != nil {
-		return nil, err
+	return sql.Open("sqlserver", connectionURL.String())
+}
+
+// GetPostgresConnection returns a PostgreSQL database connection
+func GetPostgresConnection(config *PostgresConfig) (*sql.DB, error) {
+	parameters := url.Values{}
+	parameters.Add("dbname", config.Name)
+	if !config.UseSSL {
+		parameters.Add("sslmode", "disable")
 	}
-	return conn, nil
+	parameters.Add("sslmode", config.Name)
+	connectionURL := &url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(config.Username, config.Password),
+		Host:     config.Server,
+		RawQuery: parameters.Encode(),
+	}
+	return sql.Open("postgres", connectionURL.String())
 }
 
 // GetData returns data retrieved by using query with conn

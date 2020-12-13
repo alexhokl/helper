@@ -8,3 +8,9 @@ type Config struct {
 	Password string `yaml:"password" json:"password"`
 	Name     string `yaml:"name" json:"name"`
 }
+
+// PostgresConfig contains fields for PostgreSQL configuration
+type PostgresConfig struct {
+	Config `yaml:"config" json:"config"`
+	UseSSL bool `yaml:"use_ssl" json:"use_ssl"`
+}
