@@ -49,12 +49,19 @@ func GetJSONString(object interface{}) (string, error) {
 	return buf.String(), nil
 }
 
-// ParseJSON parses JSON string from the specified reader and fill the content
+// ParseJSONReader parses JSON string from the specified reader and fill the content
 // into the output object
-func ParseJSON(json io.Reader, output interface{}) error {
+func ParseJSONReader(json io.Reader, output interface{}) error {
 	err := j.NewDecoder(json).Decode(&output)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// ParseJSONString parses JSON string from the specified reader and fill the content
+// into the output object
+func ParseJSONString(jsonString string, output interface{}) error {
+	buf := bytes.NewBufferString(jsonString)
+	return ParseJSONReader(buf, output)
 }

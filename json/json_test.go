@@ -77,7 +77,7 @@ func TestGetJSONString(t *testing.T) {
 	}
 }
 
-func TestParseJSON(t *testing.T) {
+func TestParseJSONReader(t *testing.T) {
 	var inputData = inputStruct{
 		Content: rawStruct{
 			Raw: "something",
@@ -96,7 +96,38 @@ func TestParseJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var actual inputStruct
 			buf := bytes.NewBufferString(tt.input)
-			err := ParseJSON(buf, &actual)
+			err := ParseJSONReader(buf, &actual)
+			if err != nil {
+				t.Errorf("Unexpected error: %w", err)
+			}
+			expected := tt.expected.(inputStruct)
+			if actual.Content.Raw != expected.Content.Raw {
+				t.Errorf("Expected [%v] but got [%v]", tt.expected, actual)
+			}
+		})
+	}
+
+}
+
+func TestParseJSONString(t *testing.T) {
+	var inputData = inputStruct{
+		Content: rawStruct{
+			Raw: "something",
+		},
+	}
+
+	var tests = []struct {
+		name     string
+		input    string
+		expected interface{}
+	}{
+		{"simple_object", "{\"content\":{\"raw\":\"something\"}}", inputData},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var actual inputStruct
+			err := ParseJSONString(tt.input, &actual)
 			if err != nil {
 				t.Errorf("Unexpected error: %w", err)
 			}
