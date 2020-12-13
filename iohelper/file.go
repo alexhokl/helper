@@ -23,12 +23,16 @@ func ReadStringFromFile(path string) (string, error) {
 
 // IsFileExist return true if a file exist in the specified path
 func IsFileExist(path string) bool {
-	info, err := os.Stat(path)
-	return os.IsExist(err) && info.Mode().IsRegular()
+	// info, err := os.Stat(path)
+	// return os.IsExist(err) && info.Mode().IsRegular()
+	_, err := os.Stat(path)
+	return os.IsExist(err)
 }
 
 // IsDirectoryExist return true if a file exist in the specified path
 func IsDirectoryExist(path string) bool {
-	info, err := os.Stat(path)
-	return os.IsExist(err) && info.IsDir()
+	// info, err := os.Stat(path)
+	// return os.IsExist(err) && info.Mode().IsDir()
+	_, err := os.Stat(path)
+	return os.IsExist(err)
 }
