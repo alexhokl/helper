@@ -33,9 +33,7 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 	}
 	defer file.Close()
 
-	encoder := j.NewEncoder(file)
-	err := encoder.Encode(object)
-	return err
+	return j.NewEncoder(file).Encode(object)
 }
 
 // GetJSONString returns a JSON string of the specified object
