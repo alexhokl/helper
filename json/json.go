@@ -1,6 +1,7 @@
 package json
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -34,4 +35,15 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 	encoder := json.NewEncoder(file)
 	err := encoder.Encode(object)
 	return err
+}
+
+// GetJSONString returns a JSON string of the specified object
+func GetJSONString(object interface{}) (string, error) {
+	buf := bytes.NewBufferString("")
+	encoder := json.NewEncoder(buf)
+	err := encoder.Encode(object)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
