@@ -1,10 +1,18 @@
 package json
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
 )
+
+type rawStruct struct {
+	Raw string `json:"raw"`
+}
+type inputStruct struct {
+	Content rawStruct `json:"content"`
+}
 
 func TestWriteToJSONFile(t *testing.T) {
 	var tests = []struct {
@@ -40,13 +48,8 @@ func TestWriteToJSONFile(t *testing.T) {
 }
 
 func TestGetJSONString(t *testing.T) {
-	type RawStruct struct {
-		Raw string `json:"raw"`
-	}
-	var inputStruct = struct {
-		Content RawStruct `json:"content"`
-	}{
-		Content: RawStruct{
+	var inputStruct = inputStruct{
+		Content: rawStruct{
 			Raw: "something",
 		},
 	}
@@ -72,4 +75,36 @@ func TestGetJSONString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseJSON(t *testing.T) {
+	var inputData = inputStruct{
+		Content: rawStruct{
+			Raw: "something",
+		},
+	}
+
+	var tests = []struct {
+		name     string
+		input    string
+		expected interface{}
+	}{
+		{"simple_object", "{\"content\":{\"raw\":\"something\"}}", inputData},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var actual inputStruct
+			buf := bytes.NewBufferString(tt.input)
+			err := ParseJSON(buf, &actual)
+			if err != nil {
+				t.Errorf("Unexpected error: %w", err)
+			}
+			expected := tt.expected.(inputStruct)
+			if actual.Content.Raw != expected.Content.Raw {
+				t.Errorf("Expected [%v] but got [%v]", tt.expected, actual)
+			}
+		})
+	}
+
 }

@@ -2,8 +2,9 @@ package json
 
 import (
 	"bytes"
-	"encoding/json"
+	j "encoding/json"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -32,7 +33,7 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 	}
 	defer file.Close()
 
-	encoder := json.NewEncoder(file)
+	encoder := j.NewEncoder(file)
 	err := encoder.Encode(object)
 	return err
 }
@@ -40,10 +41,20 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 // GetJSONString returns a JSON string of the specified object
 func GetJSONString(object interface{}) (string, error) {
 	buf := bytes.NewBufferString("")
-	encoder := json.NewEncoder(buf)
+	encoder := j.NewEncoder(buf)
 	err := encoder.Encode(object)
 	if err != nil {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+// ParseJSON parses JSON string from the specified reader and fill the content
+// into the output object
+func ParseJSON(json io.Reader, output interface{}) error {
+	err := j.NewDecoder(json).Decode(&output)
+	if err != nil {
+		return err
+	}
+	return nil
 }
