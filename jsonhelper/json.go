@@ -38,13 +38,19 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 
 // GetJSONString returns a JSON string of the specified object
 func GetJSONString(object interface{}) (string, error) {
+	buf, err := GetJSONStringBuffer(object)
+	return buf.String(), err
+}
+
+// GetJSONStringBuffer returns a buffer of JSON string of the specified object
+func GetJSONStringBuffer(object interface{}) (*bytes.Buffer, error) {
 	buf := bytes.NewBufferString("")
 	encoder := j.NewEncoder(buf)
 	err := encoder.Encode(object)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return buf.String(), nil
+	return buf, nil
 }
 
 // ParseJSONReader parses JSON string from the specified reader and fill the content
