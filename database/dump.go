@@ -3,9 +3,9 @@ package database
 import (
 	"fmt"
 	"os"
-	"strings"
-	"text/tabwriter"
 	"time"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 // DumpTables prints the specified tables to standard output stream
@@ -21,13 +21,15 @@ func DumpTables(list []TableData) error {
 
 // DumpTable prints the specified table to standard output stream
 func DumpTable(data *TableData) error {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
-	fmt.Fprintf(w, "%s\t\n", strings.Join(data.Columns, "\t"))
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader(data.Columns)
+	var rows [][]string
 	for _, r := range data.Rows {
 		vals := getStringValues(r)
-		fmt.Fprintf(w, "%s\t\n", strings.Join(vals, "\t"))
+		rows = append(rows, vals)
 	}
-	w.Flush()
+	table.AppendBulk(rows)
+	table.Render()
 	return nil
 }
 
