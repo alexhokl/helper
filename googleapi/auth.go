@@ -2,25 +2,30 @@ package googleapi
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"googlemaps.github.io/maps"
 
+	"github.com/alexhokl/helper/cli"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
 // NewHttpClient returns an authenticated HTTP client
 // which can be used by google API clients/services
-func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string) (*http.Client, error) {
+func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string, port int) (*http.Client, error) {
 	fileBytes, errFile := ioutil.ReadFile(secretFilePath)
 	if errFile != nil {
 		return nil, errFile
@@ -30,16 +35,17 @@ func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string)
 	if errParse != nil {
 		return nil, errParse
 	}
+	oAuthConfig.RedirectURL = fmt.Sprintf("http://localhost:%d/callback", port)
 
 	ctx := context.Background()
-	return newAuthClient(ctx, oAuthConfig, tokenFilename)
+	return newAuthClient(ctx, oAuthConfig, tokenFilename, port)
 }
 
 func NewMapClient(apiKey string) (*maps.Client, error) {
 	return maps.NewClient(maps.WithAPIKey(apiKey))
 }
 
-func newAuthClient(ctx context.Context, config *oauth2.Config, tokenFilename string) (*http.Client, error) {
+func newAuthClient(ctx context.Context, config *oauth2.Config, tokenFilename string, port int) (*http.Client, error) {
 	tokenFilePath, errPath := getTokenFilePath(tokenFilename)
 	if errPath != nil {
 		return nil, errPath
@@ -47,7 +53,7 @@ func newAuthClient(ctx context.Context, config *oauth2.Config, tokenFilename str
 
 	token, err := getTokenFromFile(tokenFilePath)
 	if err != nil {
-		token, errWeb := getTokenFromWeb(config)
+		token, errWeb := getTokenFromBrowser(ctx, config, port)
 		if errWeb != nil {
 			return nil, errWeb
 		}
@@ -107,4 +113,80 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 		return nil, fmt.Errorf("unable to retrieve token from web %v", err)
 	}
 	return token, nil
+}
+
+func getTokenFromBrowser(ctx context.Context, config *oauth2.Config, port int) (*oauth2.Token, error) {
+	// add transport for self-signed certificate to context
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	sslcli := &http.Client{Transport: tr}
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, sslcli)
+
+	url := config.AuthCodeURL("state", oauth2.AccessTypeOffline)
+
+	fmt.Println("You will now be taken to your browser for authentication")
+	time.Sleep(1 * time.Second)
+	cmdName, cmdArgs := cli.GetOpenCommand(url)
+	_, errOpen := exec.Command(cmdName, cmdArgs...).Output()
+	if errOpen != nil {
+		return nil, errOpen
+	}
+	time.Sleep(1 * time.Second)
+
+	var token oauth2.Token
+	var err error
+	tokenDone := &sync.WaitGroup{}
+	tokenChannel := make(chan oauth2.Token, 1)
+	errorChannel := make(chan error, 1)
+	serverErrorChannel := make(chan error, 1)
+	callbackHandler := getTokenHandler(ctx, config, tokenChannel, errorChannel)
+	http.HandleFunc("/callback", callbackHandler)
+	server := getServer(port)
+	go func(tokens chan oauth2.Token) {
+		for t := range tokens {
+			token = t
+			tokenDone.Done()
+			return
+		}
+	}(tokenChannel)
+	go func(errs chan error) {
+		for e := range errs {
+			err = e
+			tokenDone.Done()
+			return
+		}
+	}(errorChannel)
+	tokenDone.Add(1)
+	go func() {
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			serverErrorChannel <- err
+		}
+		tokenDone.Done()
+	}()
+	tokenDone.Wait()
+
+	return &token, err
+}
+
+func getTokenHandler(ctx context.Context, config *oauth2.Config, tokenChannel chan oauth2.Token, errorChannel chan error) func(http.ResponseWriter, *http.Request) {
+	return func(_ http.ResponseWriter, r *http.Request) {
+		queryParts, _ := url.ParseQuery(r.URL.RawQuery)
+		code := queryParts["code"][0]
+
+		token, err := config.Exchange(ctx, code)
+		if err != nil {
+			errorChannel <- err
+			return
+		}
+
+		tokenChannel <- *token
+	}
+}
+
+func getServer(port int) *http.Server {
+	server := &http.Server{
+		Addr: fmt.Sprintf(":%d", port),
+	}
+	return server
 }
