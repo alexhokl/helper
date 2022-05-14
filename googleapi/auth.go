@@ -20,31 +20,27 @@ import (
 
 // NewHttpClient returns an authenticated HTTP client
 // which can be used by google API clients/services
-func NewHttpClient(secretFilePath string) (*http.Client, error) {
+func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string) (*http.Client, error) {
 	fileBytes, errFile := ioutil.ReadFile(secretFilePath)
 	if errFile != nil {
 		return nil, errFile
 	}
 
-	scopes := []string{
-		"https://www.googleapis.com/auth/spreadsheets",
-		"https://www.googleapis.com/auth/drive",
-	}
 	oAuthConfig, errParse := google.ConfigFromJSON(fileBytes, strings.Join(scopes, " "))
 	if errParse != nil {
 		return nil, errParse
 	}
 
 	ctx := context.Background()
-	return newAuthClient(ctx, oAuthConfig)
+	return newAuthClient(ctx, oAuthConfig, tokenFilename)
 }
 
 func NewMapClient(apiKey string) (*maps.Client, error) {
 	return maps.NewClient(maps.WithAPIKey(apiKey))
 }
 
-func newAuthClient(ctx context.Context, config *oauth2.Config) (*http.Client, error) {
-	tokenFilePath, errPath := getTokenFilePath()
+func newAuthClient(ctx context.Context, config *oauth2.Config, tokenFilename string) (*http.Client, error) {
+	tokenFilePath, errPath := getTokenFilePath(tokenFilename)
 	if errPath != nil {
 		return nil, errPath
 	}
@@ -55,19 +51,22 @@ func newAuthClient(ctx context.Context, config *oauth2.Config) (*http.Client, er
 		if errWeb != nil {
 			return nil, errWeb
 		}
-		saveToken(tokenFilePath, token)
+		errToken := saveToken(tokenFilePath, token)
+		if errToken != nil {
+			return nil, errToken
+		}
 	}
 
 	return config.Client(ctx, token), nil
 }
 
-func getTokenFilePath() (string, error) {
+func getTokenFilePath(filename string) (string, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(usr.HomeDir, url.QueryEscape(".go-sql-export")), nil
+	return filepath.Join(usr.HomeDir, url.QueryEscape(filename)), nil
 }
 
 func getTokenFromFile(path string) (*oauth2.Token, error) {
@@ -81,15 +80,16 @@ func getTokenFromFile(path string) (*oauth2.Token, error) {
 	return token, errDecode
 }
 
-func saveToken(path string, token *oauth2.Token) {
+func saveToken(path string, token *oauth2.Token) error {
 	fmt.Printf("Saving credential file to [%s]\n", path)
 
 	file, err := os.Create(path)
 	if err != nil {
-		fmt.Errorf("Unable to cache oauth token %v", err)
+		return fmt.Errorf("unable to cache oauth token %v", err)
 	}
 	defer file.Close()
 	json.NewEncoder(file).Encode(token)
+	return nil
 }
 
 func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
@@ -99,12 +99,12 @@ func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 
 	var code string
 	if _, err := fmt.Scan(&code); err != nil {
-		fmt.Errorf("Unable to read authorization code %v", err)
+		return nil, fmt.Errorf("unable to read authorization code %v", err)
 	}
 
 	token, err := config.Exchange(oauth2.NoContext, code)
 	if err != nil {
-		fmt.Errorf("Unable to retrieve token from web %v", err)
+		return nil, fmt.Errorf("unable to retrieve token from web %v", err)
 	}
 	return token, nil
 }
