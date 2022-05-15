@@ -23,9 +23,27 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+const port = 9998
+const callbackUri = "/callback"
+
+func GetToken(ctx context.Context, googleClientSecretFilePath string, scopes []string) (*oauth2.Token, error) {
+	fileBytes, errFile := ioutil.ReadFile(googleClientSecretFilePath)
+	if errFile != nil {
+		return nil, errFile
+	}
+
+	oAuthConfig, errParse := google.ConfigFromJSON(fileBytes, strings.Join(scopes, " "))
+	if errParse != nil {
+		return nil, errParse
+	}
+	oAuthConfig.RedirectURL = fmt.Sprintf("http://localhost:%d%s", port, callbackUri)
+
+	return getTokenFromBrowser(ctx, oAuthConfig, port)
+}
+
 // NewHttpClient returns an authenticated HTTP client
 // which can be used by google API clients/services
-func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string, port int) (*http.Client, error) {
+func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string) (*http.Client, error) {
 	fileBytes, errFile := ioutil.ReadFile(secretFilePath)
 	if errFile != nil {
 		return nil, errFile
@@ -35,35 +53,35 @@ func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string,
 	if errParse != nil {
 		return nil, errParse
 	}
-	oAuthConfig.RedirectURL = fmt.Sprintf("http://localhost:%d/callback", port)
+	oAuthConfig.RedirectURL = fmt.Sprintf("http://localhost:%d%s", port, callbackUri)
 
 	ctx := context.Background()
-	return newAuthClient(ctx, oAuthConfig, tokenFilename, port)
+	token, err := getTokenAndSave(ctx, oAuthConfig, tokenFilename, port)
+	if err != nil {
+		return nil, err
+	}
+	return oAuthConfig.Client(ctx, token), nil
 }
 
 func NewMapClient(apiKey string) (*maps.Client, error) {
 	return maps.NewClient(maps.WithAPIKey(apiKey))
 }
 
-func newAuthClient(ctx context.Context, config *oauth2.Config, tokenFilename string, port int) (*http.Client, error) {
+func getTokenAndSave(ctx context.Context, config *oauth2.Config, tokenFilename string, port int) (*oauth2.Token, error) {
 	tokenFilePath, errPath := getTokenFilePath(tokenFilename)
 	if errPath != nil {
 		return nil, errPath
 	}
 
 	token, err := getTokenFromFile(tokenFilePath)
-	if err != nil {
-		token, errWeb := getTokenFromBrowser(ctx, config, port)
-		if errWeb != nil {
-			return nil, errWeb
-		}
-		errToken := saveToken(tokenFilePath, token)
-		if errToken != nil {
-			return nil, errToken
-		}
+	if err == nil {
+		return token, nil
 	}
-
-	return config.Client(ctx, token), nil
+	token, errWeb := getTokenFromBrowser(ctx, config, port)
+	if errWeb != nil {
+		return nil, errWeb
+	}
+	return token, nil
 }
 
 func getTokenFilePath(filename string) (string, error) {
@@ -141,7 +159,7 @@ func getTokenFromBrowser(ctx context.Context, config *oauth2.Config, port int) (
 	errorChannel := make(chan error, 1)
 	serverErrorChannel := make(chan error, 1)
 	callbackHandler := getTokenHandler(ctx, config, tokenChannel, errorChannel)
-	http.HandleFunc("/callback", callbackHandler)
+	http.HandleFunc(callbackUri, callbackHandler)
 	server := getServer(port)
 	go func(tokens chan oauth2.Token) {
 		for t := range tokens {
