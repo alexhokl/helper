@@ -143,6 +143,7 @@ func getTokenFromBrowser(ctx context.Context, config *oauth2.Config, port int) (
 	callbackHandler := getTokenHandler(ctx, config, tokenChannel, errorChannel)
 	http.HandleFunc("/callback", callbackHandler)
 	server := getServer(port)
+	defer server.Shutdown(ctx)
 	go func(tokens chan oauth2.Token) {
 		for t := range tokens {
 			token = t
