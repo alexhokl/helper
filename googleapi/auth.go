@@ -53,7 +53,8 @@ func newAuthClient(ctx context.Context, config *oauth2.Config, tokenFilename str
 
 	token, err := getTokenFromFile(tokenFilePath)
 	if err != nil {
-		token, errWeb := getTokenFromBrowser(ctx, config, port)
+		token, errWeb := getTokenFromWeb(config)
+		// token, errWeb := getTokenFromBrowser(ctx, config, port)
 		if errWeb != nil {
 			return nil, errWeb
 		}
@@ -99,7 +100,7 @@ func saveToken(path string, token *oauth2.Token) error {
 }
 
 func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	authURL := config.AuthCodeURL("state")
 	fmt.Printf("Go to the following link in your browser then type the authorization code below \n%v\n", authURL)
 	fmt.Printf("Authorization code: ")
 
