@@ -41,9 +41,22 @@ func GetToken(ctx context.Context, googleClientSecretFilePath string, scopes []s
 	return getTokenFromBrowser(ctx, oAuthConfig, port)
 }
 
-// NewHttpClient returns an authenticated HTTP client
+func NewHttpClient(ctx context.Context, googleClientSecretFilePath string, token *oauth2.Token) (*http.Client, error) {
+	fileBytes, errFile := ioutil.ReadFile(googleClientSecretFilePath)
+	if errFile != nil {
+		return nil, errFile
+	}
+
+	oAuthConfig, errParse := google.ConfigFromJSON(fileBytes)
+	if errParse != nil {
+		return nil, errParse
+	}
+	return oAuthConfig.Client(ctx, token), nil
+}
+
+// NewHttpClientAndSaveToken returns an authenticated HTTP client
 // which can be used by google API clients/services
-func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string) (*http.Client, error) {
+func NewHttpClientAndSaveToken(secretFilePath string, tokenFilename string, scopes []string) (*http.Client, error) {
 	fileBytes, errFile := ioutil.ReadFile(secretFilePath)
 	if errFile != nil {
 		return nil, errFile
