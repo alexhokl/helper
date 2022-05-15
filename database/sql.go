@@ -7,6 +7,7 @@ import (
 	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
+	_ "github.com/lib/pq"
 )
 
 // TableData struct
