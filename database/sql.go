@@ -36,7 +36,6 @@ func GetPostgresConnection(config *PostgresConfig) (*sql.DB, error) {
 	if !config.UseSSL {
 		parameters.Add("sslmode", "disable")
 	}
-	parameters.Add("sslmode", config.Name)
 	connectionURL := &url.URL{
 		Scheme:   "postgres",
 		User:     url.UserPassword(config.Username, config.Password),
