@@ -35,7 +35,7 @@ func NewHttpClient(secretFilePath string, tokenFilename string, scopes []string,
 	if errParse != nil {
 		return nil, errParse
 	}
-	oAuthConfig.RedirectURL = fmt.Sprintf("http://localhost:%d/callback", port)
+	// oAuthConfig.RedirectURL = fmt.Sprintf("http://localhost:%d/callback", port)
 
 	ctx := context.Background()
 	return newAuthClient(ctx, oAuthConfig, tokenFilename, port)
@@ -53,7 +53,8 @@ func newAuthClient(ctx context.Context, config *oauth2.Config, tokenFilename str
 
 	token, err := getTokenFromFile(tokenFilePath)
 	if err != nil {
-		token, errWeb := getTokenFromBrowser(ctx, config, port)
+		token, errWeb := getTokenFromWeb(config)
+		// token, errWeb := getTokenFromBrowser(ctx, config, port)
 		if errWeb != nil {
 			return nil, errWeb
 		}
