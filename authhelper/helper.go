@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,7 +57,9 @@ func GetToken(ctx context.Context, config OAuthConfig) (*oauth2.Token, error) {
 	cmdName, cmdArgs := cli.GetOpenCommand(url)
 	_, errOpen := exec.Command(cmdName, cmdArgs...).Output()
 	if errOpen != nil {
-		return nil, errOpen
+		cmdParts := []string { cmdName }
+		cmdParts = append(cmdParts, cmdArgs...)
+		return nil, fmt.Errorf("unable to complete command [%s] %w", strings.Join(cmdParts, " "), errOpen)
 	}
 	time.Sleep(1 * time.Second)
 
