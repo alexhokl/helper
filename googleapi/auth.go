@@ -50,7 +50,7 @@ func (client *GoogleClient) GetToken() (*oauth2.Token, error) {
 			ClientId:     client.Config.ClientID,
 			ClientSecret: client.Config.ClientSecret,
 			Scopes:       client.Config.Scopes,
-			RedirectURI:  client.Config.RedirectURL,
+			RedirectURI:  callbackUri,
 			Port:         port,
 			Endpoint:     google.Endpoint,
 		},
