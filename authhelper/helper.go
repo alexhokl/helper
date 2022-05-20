@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -54,12 +52,8 @@ func GetToken(ctx context.Context, config OAuthConfig) (*oauth2.Token, error) {
 
 	fmt.Println("You will now be taken to your browser for authentication")
 	time.Sleep(1 * time.Second)
-	cmdName, cmdArgs := cli.GetOpenCommand(url)
-	_, errOpen := exec.Command(cmdName, cmdArgs...).Output()
-	if errOpen != nil {
-		cmdParts := []string { cmdName }
-		cmdParts = append(cmdParts, cmdArgs...)
-		return nil, fmt.Errorf("unable to complete command [%s] %w", strings.Join(cmdParts, " "), errOpen)
+	if err := cli.OpenInBrowser(url); err != nil {
+		return nil, err
 	}
 	time.Sleep(1 * time.Second)
 
