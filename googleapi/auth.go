@@ -18,8 +18,8 @@ const callbackUri = "/callback"
 
 type GoogleClient struct {
 	Context context.Context
-	Config *oauth2.Config
-	Token *oauth2.Token
+	Config  *oauth2.Config
+	Token   *oauth2.Token
 }
 
 func New(ctx context.Context, googleClientSecretFilePath string, accessToken string, refreshToken string, scopes []string) (*GoogleClient, error) {
@@ -33,10 +33,10 @@ func New(ctx context.Context, googleClientSecretFilePath string, accessToken str
 		return nil, errParse
 	}
 	client := &GoogleClient{
-		Config: oAuthConfig,
+		Config:  oAuthConfig,
 		Context: ctx,
 		Token: &oauth2.Token{
-			AccessToken: accessToken,
+			AccessToken:  accessToken,
 			RefreshToken: refreshToken,
 		},
 	}
@@ -47,11 +47,12 @@ func (client *GoogleClient) GetToken() (*oauth2.Token, error) {
 	token, err := authhelper.GetToken(
 		client.Context,
 		authhelper.OAuthConfig{
-			ClientId: client.Config.ClientID,
+			ClientId:     client.Config.ClientID,
 			ClientSecret: client.Config.ClientSecret,
-			Scopes: client.Config.Scopes,
-			RedirectURI: client.Config.RedirectURL,
-			Port: port,
+			Scopes:       client.Config.Scopes,
+			RedirectURI:  client.Config.RedirectURL,
+			Port:         port,
+			Endpoint:     google.Endpoint,
 		},
 	)
 	if err != nil {
@@ -62,7 +63,7 @@ func (client *GoogleClient) GetToken() (*oauth2.Token, error) {
 	return token, nil
 }
 
-func (client *GoogleClient) NewHttpClient() (*http.Client) {
+func (client *GoogleClient) NewHttpClient() *http.Client {
 	return client.Config.Client(client.Context, client.Token)
 }
 
