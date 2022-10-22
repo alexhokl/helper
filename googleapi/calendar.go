@@ -23,7 +23,7 @@ func GetEvents(srv *calendar.Service, calendarName string, startTime string, end
 		return nil, fmt.Errorf("calendar name is required")
 	}
 
-	call := srv.Events.List(calendarName)
+	call := srv.Events.List(calendarName).SingleEvents(true)
 
 	if startTime != "" {
 		call = call.TimeMin(startTime)
