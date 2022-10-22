@@ -2,7 +2,6 @@ package googleapi
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"googlemaps.github.io/maps"
@@ -18,7 +17,7 @@ func GetCoordinatesFromStreetAddress(client *maps.Client, address string) (longi
 		return
 	}
 	if len(results) == 0 {
-		throwErr = errors.New(fmt.Sprintf("Unable to resolve address [%s]", address))
+		throwErr = fmt.Errorf("unable to resolve address [%s]", address)
 		return
 	}
 	longitude = results[0].Geometry.Location.Lng
