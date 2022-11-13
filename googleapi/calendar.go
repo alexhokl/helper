@@ -18,7 +18,7 @@ func NewCalendarService(ctx context.Context, oauthConfig oauth2.Config, token oa
 	return srv, nil
 }
 
-func GetEvents(srv *calendar.Service, calendarName string, startTime string, endTime string, limit int64, orderBy string) ([]*calendar.Event, error) {
+func GetEvents(srv *calendar.Service, calendarName string, startTime string, endTime string, query string, limit int64, orderBy string) ([]*calendar.Event, error) {
 	if calendarName == "" {
 		return nil, fmt.Errorf("calendar name is required")
 	}
@@ -39,6 +39,10 @@ func GetEvents(srv *calendar.Service, calendarName string, startTime string, end
 
 	if orderBy != "" {
 		call = call.OrderBy(orderBy)
+	}
+
+	if query != "" {
+		call = call.Q(query)
 	}
 
 	events, err := call.Do()
