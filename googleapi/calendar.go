@@ -3,6 +3,7 @@ package googleapi
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
@@ -113,4 +114,47 @@ func DeleteEvents(srv *calendar.Service, calendarID string, eventIDs []string) e
 		}
 	}
 	return nil
+}
+
+/// GetCalendarTimeZone
+func GetCalendarTimeZone(srv *calendar.Service, calendarID string) (*time.Location, error) {
+	if calendarID == "" {
+		return nil, fmt.Errorf("calendar name is required")
+	}
+
+	calendar, err := srv.Calendars.Get(calendarID).Do()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get calendar: %v", err)
+	}
+	ianaTimeZone := calendar.TimeZone
+	return time.LoadLocation(ianaTimeZone)
+}
+
+func PatchEventDates(srv *calendar.Service, calendarID string, eventID string, start string, end string) (*calendar.Event, error) {
+	if calendarID == "" {
+		return nil, fmt.Errorf("calendar name is required")
+	}
+
+	if eventID == "" {
+		return nil, fmt.Errorf("event id is required")
+	}
+
+	if start == "" {
+		return nil, fmt.Errorf("start date is required")
+	}
+
+	if end == "" {
+		return nil, fmt.Errorf("end date is required")
+	}
+
+	event := &calendar.Event{
+		Start: &calendar.EventDateTime{
+			DateTime: start,
+		},
+		End: &calendar.EventDateTime{
+			DateTime: end,
+		},
+	}
+
+	return srv.Events.Patch(calendarID, eventID, event).Do()
 }
