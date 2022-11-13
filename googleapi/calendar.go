@@ -51,3 +51,14 @@ func GetEvents(srv *calendar.Service, calendarName string, startTime string, end
 
 	return events.Items, nil
 }
+
+func GetCalendars(srv *calendar.Service) ([]*calendar.CalendarListEntry, error) {
+	list, err := srv.CalendarList.List().Do()
+	if err != nil {
+		return nil, err
+	}
+	if list.NextPageToken == "" {
+		return list.Items, nil
+	}
+	return list.Items, nil
+}
