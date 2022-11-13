@@ -66,3 +66,26 @@ func GetCalendars(srv *calendar.Service) ([]*calendar.CalendarListEntry, error) 
 	}
 	return list.Items, nil
 }
+
+func CreateEvent(srv *calendar.Service, calendarID string, summary string, description string, startDateTime string, endDateTime string) (*calendar.Event, error) {
+	if calendarID == "" {
+		return nil, fmt.Errorf("calendar name is required")
+	}
+
+	event := &calendar.Event{
+		Start: &calendar.EventDateTime{
+			DateTime: startDateTime,
+		},
+		End: &calendar.EventDateTime{
+			DateTime: endDateTime,
+		},
+		Summary: summary,
+		Description: description,
+	}
+
+	eventCreated, err := srv.Events.Insert(calendarID, event).Do()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create event: %v", err)
+	}
+	return eventCreated, nil
+}
