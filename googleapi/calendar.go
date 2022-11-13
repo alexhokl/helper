@@ -89,3 +89,28 @@ func CreateEvent(srv *calendar.Service, calendarID string, summary string, descr
 	}
 	return eventCreated, nil
 }
+
+func DeleteEvent(srv *calendar.Service, calendarID string, eventID string) error {
+	if calendarID == "" {
+		return fmt.Errorf("calendar name is required")
+	}
+
+	if eventID == "" {
+		return fmt.Errorf("event id is required")
+	}
+
+	err := srv.Events.Delete(calendarID, eventID).Do()
+	if err != nil {
+		return fmt.Errorf("unable to delete event: %v", err)
+	}
+	return nil
+}
+
+func DeleteEvents(srv *calendar.Service, calendarID string, eventIDs []string) error {
+	for _, eventID := range eventIDs {
+		if err := DeleteEvent(srv, calendarID, eventID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
