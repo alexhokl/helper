@@ -10,6 +10,9 @@ import (
 	"google.golang.org/api/option"
 )
 
+const listDefaultMax = 250
+const listNoLimit = 0
+
 func NewCalendarService(ctx context.Context, oauthConfig oauth2.Config, token oauth2.Token) (*calendar.Service, error) {
 	httpClient := oauthConfig.Client(ctx, &token)
 	srv, err := calendar.NewService(ctx, option.WithHTTPClient(httpClient))
@@ -19,12 +22,12 @@ func NewCalendarService(ctx context.Context, oauthConfig oauth2.Config, token oa
 	return srv, nil
 }
 
-func GetEvents(srv *calendar.Service, calendarName string, startTime string, endTime string, query string, limit int64, orderBy string) ([]*calendar.Event, error) {
-	if calendarName == "" {
-		return nil, fmt.Errorf("calendar name is required")
+func GetEvents(srv *calendar.Service, calendarID string, startTime string, endTime string, query string, limit int, orderBy string) ([]*calendar.Event, error) {
+	if calendarID == "" {
+		return nil, fmt.Errorf("calendar ID is required")
 	}
 
-	call := srv.Events.List(calendarName).SingleEvents(true)
+	call := srv.Events.List(calendarID).SingleEvents(true)
 
 	if startTime != "" {
 		call = call.TimeMin(startTime)
@@ -32,10 +35,6 @@ func GetEvents(srv *calendar.Service, calendarName string, startTime string, end
 
 	if endTime != "" {
 		call = call.TimeMax(endTime)
-	}
-
-	if limit != 0 {
-		call = call.MaxResults(limit)
 	}
 
 	if orderBy != "" {
@@ -46,15 +45,28 @@ func GetEvents(srv *calendar.Service, calendarName string, startTime string, end
 		call = call.Q(query)
 	}
 
-	events, err := call.Do()
+	events, err := listEvents(call, limit)
 	if err != nil {
 		return nil, err
 	}
-	if events.NextPageToken == "" {
-		return events.Items, nil
+
+	count := len(events.Items)
+
+	var allEvents []*calendar.Event
+	allEvents = append(allEvents, events.Items...)
+
+	for events.NextPageToken != "" && count < limit {
+		nextPageToken := events.NextPageToken
+		call = call.PageToken(nextPageToken)
+		remainingLimit := limit - count
+		events, err = listEvents(call, remainingLimit)
+		if err != nil {
+			return nil, fmt.Errorf("unable to retrieve results of next page [%s]: %v", nextPageToken, err)
+		}
+		allEvents = append(allEvents, events.Items...)
 	}
 
-	return events.Items, nil
+	return allEvents, nil
 }
 
 func GetCalendars(srv *calendar.Service) ([]*calendar.CalendarListEntry, error) {
@@ -80,7 +92,7 @@ func CreateEvent(srv *calendar.Service, calendarID string, summary string, descr
 		End: &calendar.EventDateTime{
 			DateTime: endDateTime,
 		},
-		Summary: summary,
+		Summary:     summary,
 		Description: description,
 	}
 
@@ -116,7 +128,7 @@ func DeleteEvents(srv *calendar.Service, calendarID string, eventIDs []string) e
 	return nil
 }
 
-/// GetCalendarTimeZone
+// / GetCalendarTimeZone
 func GetCalendarTimeZone(srv *calendar.Service, calendarID string) (*time.Location, error) {
 	if calendarID == "" {
 		return nil, fmt.Errorf("calendar name is required")
@@ -149,4 +161,11 @@ func PatchEventDates(srv *calendar.Service, calendarID string, eventID string, s
 	}
 
 	return srv.Events.Patch(calendarID, eventID, event).Do()
+}
+
+func listEvents(call *calendar.EventsListCall, limit int) (*calendar.Events, error) {
+	if limit < listDefaultMax {
+		call = call.MaxResults(int64(limit))
+	}
+	return call.Do()
 }
