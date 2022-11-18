@@ -70,14 +70,26 @@ func GetEvents(srv *calendar.Service, calendarID string, startTime string, endTi
 }
 
 func GetCalendars(srv *calendar.Service) ([]*calendar.CalendarListEntry, error) {
-	list, err := srv.CalendarList.List().Do()
+	call := srv.CalendarList.List()
+	list, err := call.Do()
 	if err != nil {
 		return nil, err
 	}
-	if list.NextPageToken == "" {
-		return list.Items, nil
+
+	var allCalendars []*calendar.CalendarListEntry
+	allCalendars = append(allCalendars, list.Items...)
+
+	for list.NextPageToken != "" {
+		nextPageToken := list.NextPageToken
+		call = call.PageToken(nextPageToken)
+		list, err = call.Do()
+		if err != nil {
+			return nil, fmt.Errorf("unable to retrieve results of next page [%s]: %v", nextPageToken, err)
+		}
+		allCalendars = append(allCalendars, list.Items...)
 	}
-	return list.Items, nil
+
+	return allCalendars, nil
 }
 
 func CreateEvent(srv *calendar.Service, calendarID string, summary string, description string, startDateTime string, endDateTime string) (*calendar.Event, error) {
