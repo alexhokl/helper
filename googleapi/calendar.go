@@ -15,9 +15,15 @@ import (
 const listDefaultMax = 250
 const listNoLimit = 0
 
-func NewCalendarService(ctx context.Context, oauthConfig oauth2.Config, token oauth2.Token) (*calendar.Service, error) {
-	httpClient := oauthConfig.Client(ctx, &token)
-	srv, err := calendar.NewService(ctx, option.WithHTTPClient(httpClient))
+func NewCalendarService(ctx context.Context, oauthConfig *oauth2.Config, token *oauth2.Token) (*calendar.Service, error) {
+	httpClient := oauthConfig.Client(ctx, token)
+	tokenSource := oauthConfig.TokenSource(ctx, token)
+	refreshableTokenSource := oauth2.ReuseTokenSource(nil, tokenSource)
+	srv, err := calendar.NewService(
+		ctx,
+		option.WithHTTPClient(httpClient),
+		option.WithTokenSource(refreshableTokenSource),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve Calendar client: %v", err)
 	}
