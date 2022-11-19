@@ -2,6 +2,7 @@ package googleapi
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -34,6 +35,24 @@ func New(ctx context.Context, googleClientSecretFilePath string, accessToken str
 	}
 	client := &GoogleClient{
 		Config:  oAuthConfig,
+		Context: ctx,
+		Token: &oauth2.Token{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+		},
+	}
+	return client, nil
+}
+
+func NewFromClientIDSecret(ctx context.Context, clientID string, clientSecret string, scopes []string, accessToken string, refreshToken string) (*GoogleClient, error) {
+	client := &GoogleClient{
+		Config: &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Scopes:       scopes,
+			Endpoint:     google.Endpoint,
+			RedirectURL:  fmt.Sprintf("http://localhost:%d%s", port, callbackUri),
+		},
 		Context: ctx,
 		Token: &oauth2.Token{
 			AccessToken:  accessToken,
