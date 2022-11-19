@@ -8,6 +8,8 @@ import (
 	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
+
+	google "google.golang.org/api/googleapi"
 )
 
 const listDefaultMax = 250
@@ -47,6 +49,11 @@ func GetEvents(srv *calendar.Service, calendarID string, startTime string, endTi
 
 	events, err := listEvents(call, limit)
 	if err != nil {
+		if googleErr, ok := err.(*google.Error); ok {
+			if googleErr.Code == 401 {
+				return nil, fmt.Errorf("unauthorized (potentially expired access token): %v", err)
+			}
+		}
 		return nil, err
 	}
 
