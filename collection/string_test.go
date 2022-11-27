@@ -21,3 +21,46 @@ func TestGetDistinct(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDelimitedString(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     []string
+		delimiter string
+		expected  string
+	}{
+		{
+			name:      "empty array",
+			input:     []string{},
+			delimiter: ",",
+			expected:  "",
+		},
+		{
+			name:      "empty delimiter",
+			input:     []string{"abc", "def"},
+			delimiter: "",
+			expected:  "abcdef",
+		},
+		{
+			name:      "normal case",
+			input:     []string{"abc", "def"},
+			delimiter: ",",
+			expected:  "abc,def",
+		},
+		{
+			name:      "single item array",
+			input:     []string{"abc"},
+			delimiter: ",",
+			expected:  "abc",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := GetDelimitedString(test.input, test.delimiter)
+			if actual != test.expected {
+				t.Errorf("Expected %v but got %v", test.expected, actual)
+			}
+		})
+	}
+}

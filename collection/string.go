@@ -25,7 +25,7 @@ func GetDelimitedString(array []string, delimiter string) string {
 	var builder strings.Builder
 	for index, i := range array {
 		if index == 0 {
-			builder.WriteString(fmt.Sprintf("%s", i))
+			builder.WriteString(i)
 		} else {
 			builder.WriteString(fmt.Sprintf("%s%s", delimiter, i))
 		}
