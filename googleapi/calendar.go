@@ -105,6 +105,11 @@ func GetCalendars(srv *calendar.Service) ([]*calendar.CalendarListEntry, error) 
 	return allCalendars, nil
 }
 
+func GetCalendar(srv *calendar.Service, calendarID string) (*calendar.CalendarListEntry, error) {
+	call := srv.CalendarList.Get(calendarID)
+	return call.Do()
+}
+
 func CreateEvent(srv *calendar.Service, calendarID string, summary string, description string, startDateTime string, endDateTime string) (*calendar.Event, error) {
 	if calendarID == "" {
 		return nil, fmt.Errorf("calendar name is required")
