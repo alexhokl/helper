@@ -23,7 +23,7 @@ type GoogleClient struct {
 	Token   *oauth2.Token
 }
 
-func New(ctx context.Context, googleClientSecretFilePath string, accessToken string, refreshToken string, scopes []string) (*GoogleClient, error) {
+func New(ctx context.Context, googleClientSecretFilePath string, accessToken *oauth2.Token, scopes []string) (*GoogleClient, error) {
 	fileBytes, errFile := ioutil.ReadFile(googleClientSecretFilePath)
 	if errFile != nil {
 		return nil, errFile
@@ -36,15 +36,12 @@ func New(ctx context.Context, googleClientSecretFilePath string, accessToken str
 	client := &GoogleClient{
 		Config:  oAuthConfig,
 		Context: ctx,
-		Token: &oauth2.Token{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
-		},
+		Token:   accessToken,
 	}
 	return client, nil
 }
 
-func NewFromClientIDSecret(ctx context.Context, clientID string, clientSecret string, scopes []string, accessToken string, refreshToken string) (*GoogleClient, error) {
+func NewFromClientIDSecret(ctx context.Context, clientID string, clientSecret string, scopes []string, accessToken *oauth2.Token) (*GoogleClient, error) {
 	client := &GoogleClient{
 		Config: &oauth2.Config{
 			ClientID:     clientID,
@@ -54,10 +51,7 @@ func NewFromClientIDSecret(ctx context.Context, clientID string, clientSecret st
 			RedirectURL:  fmt.Sprintf("http://localhost:%d%s", port, callbackUri),
 		},
 		Context: ctx,
-		Token: &oauth2.Token{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
-		},
+		Token:   accessToken,
 	}
 	return client, nil
 }
@@ -73,6 +67,7 @@ func (client *GoogleClient) GetToken() (*oauth2.Token, error) {
 			Port:         port,
 			Endpoint:     google.Endpoint,
 		},
+		false,
 	)
 	if err != nil {
 		return nil, err
