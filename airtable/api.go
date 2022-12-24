@@ -112,6 +112,75 @@ func UpdateRecords[T AirtableFields](httpClient *http.Client, request *http.Requ
 	return items, nil
 }
 
+func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client, record Tin, baseID string, tableName string, ctx context.Context) ([]*AirtableRecord[T], error) {
+	path := fmt.Sprintf("%s/%s/%s", apiBasePath, baseID, tableName)
+	headers := map[string]string{
+		"Content-Type": contentTypeJSON,
+	}
+
+	viewModel := CreateRecordsRequest[Tin]{}
+	viewModel.Records = append(
+		viewModel.Records,
+		CreateRecordRequest[Tin]{
+			Fields: record,
+		},
+	)
+	body, err := EncodePostAsJSON(viewModel)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := httphelper.NewRequest(http.MethodPost, path, nil, headers, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if ctx != nil {
+		request = request.WithContext(ctx)
+	}
+
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+
+	responseBody, err := ioutil.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	if !httphelper.IsSuccessResponse(response) {
+		return nil, handleErrorResponse(response.StatusCode, responseBody)
+	}
+
+	if !httphelper.HasContentType(response, contentTypeJSON) {
+		return nil, fmt.Errorf("Content-Type is not %s", contentTypeJSON)
+	}
+
+	var list AirtableRecords[T]
+	if err := jsonhelper.ParseJSONFromBytes(&list, responseBody); err != nil {
+		return nil, err
+	}
+
+	var items []*AirtableRecord[T]
+	for i := range list.Records {
+		items = append(items, &list.Records[i])
+	}
+	return items, nil
+}
+
+// EncodePostAsJSON returns bytes of JSON encoded patch request
+func EncodePostAsJSON[T AirtableFields](req CreateRecordsRequest[T]) (bodyBuf *bytes.Buffer, err error) {
+	bodyBuf = &bytes.Buffer{}
+	err = json.NewEncoder(bodyBuf).Encode(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return bodyBuf, nil
+}
+
 // EncodePatchAsJSON returns bytes of JSON encoded patch request
 func EncodePatchAsJSON[T any](patchRequest PatchItemsRequest[T]) (bodyBuf *bytes.Buffer, err error) {
 	bodyBuf = &bytes.Buffer{}

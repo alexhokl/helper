@@ -34,6 +34,16 @@ type PatchItemRequest[T AirtableFields] struct {
 	Fields T      `json:"fields"`
 }
 
+// CreateRecordsRequest represents a request to create a list of records
+type CreateRecordsRequest[T AirtableFields] struct {
+	Records []CreateRecordRequest[T] `json:"records"`
+}
+
+// CreateRecordRequest represents a request to create a record
+type CreateRecordRequest[T AirtableFields] struct {
+	Fields T `json:"fields"`
+}
+
 // ErrorResponse represents an error response from Airtable
 type ErrorResponse struct {
 	Error ErrorDetail `json:"error"`
