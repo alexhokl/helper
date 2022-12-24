@@ -19,7 +19,7 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 
 	if _, err := os.Stat(path); os.IsExist(err) {
 		if !isOverwrite {
-			return fmt.Errorf("File [%s] is already exist", path)
+			return fmt.Errorf("file [%s] is already exist", path)
 		}
 		errRemove := os.Remove(path)
 		if errRemove != nil {
@@ -69,3 +69,11 @@ func ParseJSONString(jsonString string, output interface{}) error {
 	buf := bytes.NewBufferString(jsonString)
 	return ParseJSONReader(buf, output)
 }
+
+func ParseJSONFromBytes(v interface{}, b []byte) (err error) {
+	if err = j.Unmarshal(b, v); err != nil {
+		return err
+	}
+	return nil
+}
+
