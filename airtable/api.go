@@ -112,7 +112,7 @@ func UpdateRecords[T AirtableFields](httpClient *http.Client, request *http.Requ
 	return items, nil
 }
 
-func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client, record Tin, baseID string, tableName string, ctx context.Context) ([]*AirtableRecord[T], error) {
+func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client, record *Tin, baseID string, tableName string, ctx context.Context) ([]*AirtableRecord[T], error) {
 	path := fmt.Sprintf("%s/%s/%s", apiBasePath, baseID, tableName)
 	headers := map[string]string{
 		"Content-Type": contentTypeJSON,
@@ -122,7 +122,7 @@ func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client,
 	viewModel.Records = append(
 		viewModel.Records,
 		CreateRecordRequest[Tin]{
-			Fields: record,
+			Fields: *record,
 		},
 	)
 	body, err := EncodePostAsJSON(viewModel)
