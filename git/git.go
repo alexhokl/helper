@@ -43,7 +43,7 @@ func GetCurrentBranchName() (string, error) {
 	if err != nil {
 		return output, err
 	}
-	name := strings.Replace(output, "\n", "", -1)
+	name := strings.ReplaceAll(output, "\n", "")
 	return name, nil
 }
 
