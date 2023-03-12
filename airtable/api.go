@@ -125,6 +125,7 @@ func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client,
 			Fields: *record,
 		},
 	)
+	viewModel.Typecast = true
 	body, err := EncodePostAsJSON(viewModel)
 	if err != nil {
 		return nil, err

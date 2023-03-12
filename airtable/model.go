@@ -25,7 +25,8 @@ type AirtableRecord[T AirtableFields] struct {
 
 // PatchItemsRequest represents a request to patch a list of items
 type PatchItemsRequest[T AirtableFields] struct {
-	Records []PatchItemRequest[T] `json:"records"`
+	Records  []PatchItemRequest[T] `json:"records"`
+	Typecast bool                  `json:"typecast"`
 }
 
 // PatchItemRequest represents a request to patch an item
@@ -36,7 +37,8 @@ type PatchItemRequest[T AirtableFields] struct {
 
 // CreateRecordsRequest represents a request to create a list of records
 type CreateRecordsRequest[T AirtableFields] struct {
-	Records []CreateRecordRequest[T] `json:"records"`
+	Records  []CreateRecordRequest[T] `json:"records"`
+	Typecast bool                     `json:"typecast"`
 }
 
 // CreateRecordRequest represents a request to create a record
