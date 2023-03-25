@@ -6,6 +6,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.12.2
 	github.com/lib/pq v1.10.5
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.12.0
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	google.golang.org/api v0.81.0
@@ -15,6 +16,7 @@ require (
 require (
 	github.com/aymanbagabas/go-osc52 v1.0.3 // indirect
 	github.com/containerd/console v1.0.3 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
@@ -29,6 +31,7 @@ require (
 require (
 	cloud.google.com/go/compute v1.6.1 // indirect
 	github.com/charmbracelet/bubbletea v0.23.1
+	github.com/fatih/structs v1.1.0
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
@@ -59,5 +62,5 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
