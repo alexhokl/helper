@@ -53,6 +53,7 @@ func TestGetJSONString(t *testing.T) {
 			Raw: "something",
 		},
 	}
+	var array = []string{"a", "b", "c"}
 
 	var tests = []struct {
 		name     string
@@ -61,6 +62,7 @@ func TestGetJSONString(t *testing.T) {
 	}{
 		{"empty", nil, "null"},
 		{"simple_object", inputStruct, "{\"content\":{\"raw\":\"something\"}}"},
+		{"simple_array", array, "[\"a\",\"b\",\"c\"]"},
 	}
 
 	for _, tt := range tests {
