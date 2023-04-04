@@ -1,6 +1,6 @@
 module github.com/alexhokl/helper
 
-go 1.19
+go 1.20
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.2
@@ -52,8 +52,9 @@ require (
 	github.com/subosito/gotenv v1.3.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d // indirect
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2 // indirect
-	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
