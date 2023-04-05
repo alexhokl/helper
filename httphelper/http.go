@@ -3,11 +3,16 @@ package httphelper
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 )
+
+const HeaderHost = "Host"
+const HeaderXForwardedFor = "X-Forwarded-For"
+const HeaderXForwardedHost = "X-Forwarded-Host"
 
 // SetBearerTokenHeader sets the Authorization header with the specified bearer
 // token
@@ -77,6 +82,14 @@ func NewRequest(method string, path string, params map[string]string, headers ma
 	return request, nil
 }
 
+func GetBaseURL(req *http.Request) string {
+	protocol := getProtocolFromHostHeaders(req)
+	domain := getDomainFromHostHeaders(req)
+	port := getPortFromHostHeaders(req)
+
+	return fmt.Sprintf("%s://%s%s", protocol, domain, port)
+}
+
 func hasContentType(header string, contentType string) bool {
 	contentTypes := strings.Split(header, ";")
 	for _, t := range contentTypes {
@@ -85,4 +98,41 @@ func hasContentType(header string, contentType string) bool {
 		}
 	}
 	return false
+}
+
+func getHostWithoutPort(host string) string {
+	domain, _, err := net.SplitHostPort(host)
+	if err != nil {
+		return host
+	}
+	return domain
+}
+
+func getDomainFromHostHeaders(req *http.Request) string {
+	domain := getHostWithoutPort(req.Header.Get(HeaderXForwardedHost))
+	if domain == "" {
+		domain = getHostWithoutPort(req.Host)
+		if domain == "" {
+			domain = "localhost"
+		}
+	}
+	return domain
+}
+
+func getProtocolFromHostHeaders(req *http.Request) string {
+	if req.Header.Get(HeaderXForwardedHost) != "" {
+		return "https"
+	}
+	return "http"
+}
+
+func getPortFromHostHeaders(req *http.Request) string {
+	if req.Header.Get(HeaderXForwardedHost) != "" {
+		return ""
+	}
+	port := req.URL.Port()
+	if port == "80" {
+		return ""
+	}
+	return fmt.Sprintf(":%s", port)
 }
