@@ -31,6 +31,14 @@ func ReadBytesFromFile(path string) ([]byte, error) {
 	return file, nil
 }
 
+func ReadFirstLineFromFile(path string) (string, error) {
+	bytes, err := ReadFirstLineBytesFromFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
 func ReadFirstLineBytesFromFile(path string) ([]byte, error) {
 	if path == "" {
 		return nil, fmt.Errorf("path cannot be empty")
