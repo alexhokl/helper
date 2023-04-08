@@ -127,11 +127,12 @@ func getProtocolFromHostHeaders(req *http.Request) string {
 }
 
 func getPortFromHostHeaders(req *http.Request) string {
+	// proxied requests should not have a port
 	if req.Header.Get(HeaderXForwardedHost) != "" {
 		return ""
 	}
-	port := req.URL.Port()
-	if port == "80" {
+	_, port, _ := net.SplitHostPort(req.Host)
+	if port == "80" || port == "" {
 		return ""
 	}
 	return fmt.Sprintf(":%s", port)
