@@ -2,11 +2,12 @@ package authhelper
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
+	mathrand "math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -242,7 +243,7 @@ func generateState(length int) (string, error) {
 }
 
 func generatePKCEVerifier() string {
-	generator := rand.New(rand.NewSource(time.Now().UnixNano()))
+	generator := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
 	b := make([]rune, lengthCodeVerifier)
 	for i := range b {
 		b[i] = letterRunes[generator.Intn(len(letterRunes))]
