@@ -3,15 +3,18 @@ package githubhelper
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
 
 type GithubIssue struct {
-	ID    string
-	Title string
-	Body  string
+	ID         string
+	Number     int
+	Title      string
+	Body       string
+	DateFields map[string]time.Time
 }
 
 func NewClient(ctx context.Context, gitHubToken string) (*githubv4.Client, error) {
@@ -31,9 +34,10 @@ func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, re
 	var query struct {
 		Repository struct {
 			Issue struct {
-				ID    string
-				Title string
-				Body  string
+				ID     string
+				Number int
+				Title  string
+				Body   string
 			} `graphql:"issue(number: $issue_number)"`
 		} `graphql:"repository(owner: $repo_owner, name: $repo_name)"`
 	}
@@ -48,10 +52,96 @@ func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, re
 		return nil, err
 	}
 	return &GithubIssue{
-		ID:    query.Repository.Issue.ID,
-		Title: query.Repository.Issue.Title,
-		Body:  query.Repository.Issue.Body,
+		ID:         query.Repository.Issue.ID,
+		Number:     query.Repository.Issue.Number,
+		Title:      query.Repository.Issue.Title,
+		Body:       query.Repository.Issue.Body,
+		DateFields: make(map[string]time.Time),
 	}, nil
+}
+
+func GetProjectID(ctx context.Context, client *githubv4.Client, repoOwner string, projectNumber int) (githubv4.ID, error) {
+	var query struct {
+		User struct {
+			Project struct {
+				ID githubv4.ID
+			} `graphql:"projectV2(number: $project_number)"`
+		} `graphql:"user(login: $repo_owner)"`
+	}
+	variables := map[string]interface{}{
+		"project_number": githubv4.Int(projectNumber),
+		"repo_owner":     githubv4.String(repoOwner),
+	}
+	err := client.Query(ctx, &query, variables)
+	if err != nil {
+		return "", err
+	}
+	return query.User.Project.ID, nil
+}
+
+func GetIssuesWithProjectDateFieldValue(ctx context.Context, client *githubv4.Client, projectID githubv4.ID, fieldName string) ([]GithubIssue, error) {
+	var query struct {
+		ProjectNode struct {
+			Project struct {
+				Items struct {
+					Nodes []struct {
+						ID          githubv4.ID
+						ContentNode struct {
+							Issue struct {
+								Number int
+								Title  string
+							} `graphql:"... on Issue"`
+						} `graphql:"content"`
+						FieldValueUnion struct {
+							FieldValue struct {
+								Date string
+							} `graphql:"... on ProjectV2ItemFieldDateValue"`
+						} `graphql:"fieldValueByName(name: $field_name)"`
+					} `graphql:"nodes"`
+					PageInfo struct {
+						EndCursor   githubv4.String
+						HasNextPage bool
+					}
+				} `graphql:"items(first: 100, after: $end_cursor)"`
+			} `graphql:"... on ProjectV2"`
+		} `graphql:"node(id: $project_id)"`
+	}
+	variables := map[string]interface{}{
+		"project_id": githubv4.ID(projectID),
+		"field_name": githubv4.String(fieldName),
+	}
+
+	var issues []GithubIssue
+	hasNextPage := true
+	endCursor := ""
+
+	for hasNextPage {
+		variables["end_cursor"] = githubv4.String(endCursor)
+		err := client.Query(ctx, &query, variables)
+		if err != nil {
+			return nil, err
+		}
+
+		hasNextPage = query.ProjectNode.Project.Items.PageInfo.HasNextPage
+		endCursor = string(query.ProjectNode.Project.Items.PageInfo.EndCursor)
+
+		for _, node := range query.ProjectNode.Project.Items.Nodes {
+			if node.FieldValueUnion.FieldValue.Date != "" {
+				date, err := time.Parse("2006-01-02", node.FieldValueUnion.FieldValue.Date)
+				if err != nil {
+					return nil, err
+				}
+				issues = append(issues, GithubIssue{
+					Number: node.ContentNode.Issue.Number,
+					Title:  node.ContentNode.Issue.Title,
+					DateFields: map[string]time.Time{
+						fieldName: date,
+					},
+				})
+			}
+		}
+	}
+	return issues, nil
 }
 
 func AddComment(ctx context.Context, client *githubv4.Client, issueID string, comment string) error {
