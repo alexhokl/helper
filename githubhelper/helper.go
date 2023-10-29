@@ -14,6 +14,7 @@ type GithubIssue struct {
 	Number     int
 	Title      string
 	Body       string
+	URL        string
 	DateFields map[string]time.Time
 }
 
@@ -38,6 +39,7 @@ func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, re
 				Number int
 				Title  string
 				Body   string
+				URL    string
 			} `graphql:"issue(number: $issue_number)"`
 		} `graphql:"repository(owner: $repo_owner, name: $repo_name)"`
 	}
@@ -56,6 +58,7 @@ func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, re
 		Number:     query.Repository.Issue.Number,
 		Title:      query.Repository.Issue.Title,
 		Body:       query.Repository.Issue.Body,
+		URL:        query.Repository.Issue.URL,
 		DateFields: make(map[string]time.Time),
 	}, nil
 }
@@ -90,6 +93,7 @@ func GetIssuesWithProjectDateFieldValue(ctx context.Context, client *githubv4.Cl
 							Issue struct {
 								Number int
 								Title  string
+								URL    string
 							} `graphql:"... on Issue"`
 						} `graphql:"content"`
 						FieldValueUnion struct {
@@ -134,6 +138,7 @@ func GetIssuesWithProjectDateFieldValue(ctx context.Context, client *githubv4.Cl
 				issues = append(issues, GithubIssue{
 					Number: node.ContentNode.Issue.Number,
 					Title:  node.ContentNode.Issue.Title,
+					URL:    node.ContentNode.Issue.URL,
 					DateFields: map[string]time.Time{
 						fieldName: date,
 					},
