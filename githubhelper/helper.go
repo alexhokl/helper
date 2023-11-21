@@ -94,6 +94,7 @@ func GetIssuesWithProjectDateFieldValue(ctx context.Context, client *githubv4.Cl
 								Number int
 								Title  string
 								URL    string
+								Closed bool
 							} `graphql:"... on Issue"`
 						} `graphql:"content"`
 						FieldValueUnion struct {
@@ -130,7 +131,7 @@ func GetIssuesWithProjectDateFieldValue(ctx context.Context, client *githubv4.Cl
 		endCursor = string(query.ProjectNode.Project.Items.PageInfo.EndCursor)
 
 		for _, node := range query.ProjectNode.Project.Items.Nodes {
-			if node.FieldValueUnion.FieldValue.Date != "" {
+			if node.FieldValueUnion.FieldValue.Date != "" && !node.ContentNode.Issue.Closed {
 				date, err := time.Parse("2006-01-02", node.FieldValueUnion.FieldValue.Date)
 				if err != nil {
 					return nil, err
