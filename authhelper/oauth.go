@@ -56,15 +56,15 @@ func GetToken(ctx context.Context, config *OAuthConfig, usePKCE bool) (*oauth2.T
 	sslcli := &http.Client{Transport: tr}
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, sslcli)
 
-	state, errState := generateState(lengthStateStr)
+	state, errState := GenerateState(lengthStateStr)
 	if errState != nil {
 		return nil, errState
 	}
 
 	var codeVerifier, codeChallenge string
 	if usePKCE {
-		codeVerifier = generatePKCEVerifier()
-		codeChallenge = generatePKCEChallenge(codeVerifier)
+		codeVerifier = GeneratePKCEVerifier()
+		codeChallenge = GeneratePKCEChallenge(codeVerifier)
 	}
 
 	authOpts := []oauth2.AuthCodeOption{
@@ -234,7 +234,7 @@ func getServer(port int) *http.Server {
 	return server
 }
 
-func generateState(length int) (string, error) {
+func GenerateState(length int) (string, error) {
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
@@ -242,7 +242,7 @@ func generateState(length int) (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-func generatePKCEVerifier() string {
+func GeneratePKCEVerifier() string {
 	generator := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
 	b := make([]rune, lengthCodeVerifier)
 	for i := range b {
@@ -251,7 +251,7 @@ func generatePKCEVerifier() string {
 	return string(b)
 }
 
-func generatePKCEChallenge(verifier string) string {
+func GeneratePKCEChallenge(verifier string) string {
 	hash := sha256.Sum256([]byte(verifier))
 	// see https://www.rfc-editor.org/rfc/rfc7636#appendix-A
 	// for no-padding requirement
