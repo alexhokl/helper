@@ -1,0 +1,21 @@
+version: '3'
+
+tasks:
+
+  build:
+    desc: Go build without output
+    cmd: go build ./...
+
+  test:
+    desc: Run unit tests
+    cmd: go test ./...
+
+  coverage:
+    desc: Unit test with coverage
+    cmd: go test --cover ./...
+
+  coverage-html:
+    desc: Run unit tests and open coverage report
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
