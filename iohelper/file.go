@@ -3,7 +3,6 @@ package iohelper
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -24,7 +23,7 @@ func ReadBytesFromFile(path string) ([]byte, error) {
 	if !IsFileExist(path) {
 		return nil, fmt.Errorf("file [%s] does not exist", path)
 	}
-	file, errFile := ioutil.ReadFile(path)
+	file, errFile := os.ReadFile(path)
 	if errFile != nil {
 		return nil, errFile
 	}
@@ -76,4 +75,14 @@ func IsDirectoryExist(path string) bool {
 		return false
 	}
 	return info.Mode().IsDir()
+}
+
+func CreateDirectory(path string) error {
+	if path == "" {
+		return fmt.Errorf("path cannot be empty")
+	}
+	if IsDirectoryExist(path) {
+		return nil
+	}
+	return os.MkdirAll(path, 0755)
 }

@@ -12,7 +12,7 @@ require (
 	google.golang.org/api v0.81.0
 	googlemaps.github.io/maps v1.3.1
 	gorm.io/driver/postgres v1.5.4
-	gorm.io/gorm v1.25.5
+	gorm.io/gorm v1.25.6
 )
 
 require (
