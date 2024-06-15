@@ -3,6 +3,7 @@ package iohelper
 import (
 	"bufio"
 	"fmt"
+	"hash/crc32"
 	"os"
 )
 
@@ -58,7 +59,6 @@ func ReadFirstLineBytesFromFile(path string) ([]byte, error) {
 	return nil, nil
 }
 
-
 // IsFileExist return true if a file exist in the specified path
 func IsFileExist(path string) bool {
 	info, err := os.Stat(path)
@@ -77,6 +77,7 @@ func IsDirectoryExist(path string) bool {
 	return info.Mode().IsDir()
 }
 
+// CreateDirectory creates and ensure a directory in the specified path
 func CreateDirectory(path string) error {
 	if path == "" {
 		return fmt.Errorf("path cannot be empty")
@@ -85,4 +86,14 @@ func CreateDirectory(path string) error {
 		return nil
 	}
 	return os.MkdirAll(path, 0755)
+}
+
+// GenerateCRC32Checksum generates CRC32 checksum of the file in the specified path
+func GenerateCRC32Checksum(path string) (uint32, error) {
+	fileBytes, err := ReadBytesFromFile(path)
+	if err != nil {
+		return 0, err
+	}
+	checksum := crc32.Checksum(fileBytes, crc32.MakeTable(crc32.Castagnoli))
+	return checksum, nil
 }
