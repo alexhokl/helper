@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 )
@@ -90,6 +91,25 @@ func IsBranchExists(branchName string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func HasStagedFiles() (bool, error) {
+	args := []string{"diff", "--name-only", "--cached"}
+	output, err := execute(args)
+	if err != nil {
+		return false, err
+	}
+	return len(output) > 0, nil
+}
+
+func DiffToStream(stagedOnly bool, writer io.Writer) error {
+	args := []string{"--no-pager", "diff"}
+	if stagedOnly {
+		args = append(args, "--cached")
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Stdout = writer
+	return cmd.Run()
 }
 
 func execute(args []string) (string, error) {
