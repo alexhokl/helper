@@ -13,11 +13,20 @@ func TestFindNamedGroupMatchedStrings(t *testing.T) {
 		expected map[string]string
 	}{
 		{
-			regex: `bitbucket\.org/(?P<org>\w+)\/(?P<name>.*)`,
+			regex: `bitbucket\.org\/(?P<org>\w+)\/(?P<name>.*)`,
 			input: "bitbucket.org/username/reponame",
 			expected: map[string]string{
 				"org":  "username",
 				"name": "reponame",
+			},
+		},
+		{
+			regex: `- (?P<kanji>\W+) \((?P<kana>\W+)\) - (?P<english>[a-z]\w+)`,
+			input: "- 学校 (がっこう) - school",
+			expected: map[string]string{
+				"kanji":   "学校",
+				"kana":    "がっこう",
+				"english": "school",
 			},
 		},
 	}
