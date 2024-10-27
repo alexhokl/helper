@@ -59,6 +59,28 @@ func ReadFirstLineBytesFromFile(path string) ([]byte, error) {
 	return nil, nil
 }
 
+// ReadLinesFromFile returns content of the file in the specified path as lines
+func ReadLinesFromFile(path string) ([]string, error) {
+	if path == "" {
+		return nil, fmt.Errorf("path cannot be empty")
+	}
+	if !IsFileExist(path) {
+		return nil, fmt.Errorf("file [%s] does not exist", path)
+	}
+	file, errFile := os.Open(path)
+	if errFile != nil {
+		return nil, errFile
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, nil
+}
+
 // IsFileExist return true if a file exist in the specified path
 func IsFileExist(path string) bool {
 	info, err := os.Stat(path)
