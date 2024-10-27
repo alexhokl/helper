@@ -30,6 +30,15 @@ func TestFindNamedGroupMatchedStrings(t *testing.T) {
 			},
 		},
 		{
+			regex: `- (?P<kanji>\W+) \((?P<kana>\W+)\) - (?P<english>[a-z]\w+)`,
+			input: "- 的 (てき) - -ish / -wise / -like",
+			expected: map[string]string{
+				"kanji":   "的",
+				"kana":    "てき",
+				"english": "-ish / -wise / -like",
+			},
+		},
+		{
 			regex: `## (?P<level>\w+)`,
 			input: "## N5",
 			expected: map[string]string{
