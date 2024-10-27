@@ -29,6 +29,20 @@ func TestFindNamedGroupMatchedStrings(t *testing.T) {
 				"english": "school",
 			},
 		},
+		{
+			regex: `## (?P<level>\w+)`,
+			input: "## N5",
+			expected: map[string]string{
+				"level":   "N5",
+			},
+		},
+		{
+			regex: `### (?P<partOfSpeech>\w+)`,
+			input: "### Nouns",
+			expected: map[string]string{
+				"partOfSpeech":   "Nouns",
+			},
+		},
 	}
 
 	for _, test := range tests {
