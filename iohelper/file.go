@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
+	"path/filepath"
 )
 
 // ReadStringFromFile returns content of the file in the specified path as string
@@ -21,6 +22,7 @@ func ReadBytesFromFile(path string) ([]byte, error) {
 	if path == "" {
 		return nil, fmt.Errorf("path cannot be empty")
 	}
+	path = filepath.Clean(path)
 	if !IsFileExist(path) {
 		return nil, fmt.Errorf("file [%s] does not exist", path)
 	}
@@ -43,6 +45,7 @@ func ReadFirstLineBytesFromFile(path string) ([]byte, error) {
 	if path == "" {
 		return nil, fmt.Errorf("path cannot be empty")
 	}
+	path = filepath.Clean(path)
 	if !IsFileExist(path) {
 		return nil, fmt.Errorf("file [%s] does not exist", path)
 	}
@@ -64,6 +67,7 @@ func ReadLinesFromFile(path string) ([]string, error) {
 	if path == "" {
 		return nil, fmt.Errorf("path cannot be empty")
 	}
+	path = filepath.Clean(path)
 	if !IsFileExist(path) {
 		return nil, fmt.Errorf("file [%s] does not exist", path)
 	}
@@ -107,7 +111,7 @@ func CreateDirectory(path string) error {
 	if IsDirectoryExist(path) {
 		return nil
 	}
-	return os.MkdirAll(path, 0755)
+	return os.MkdirAll(path, 0750)
 }
 
 // GenerateCRC32Checksum generates CRC32 checksum of the file in the specified path

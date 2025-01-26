@@ -53,9 +53,12 @@ func ListRecords[T AirtableFields](httpClient *http.Client, baseID string, table
 		}
 
 		body, err := io.ReadAll(response.Body)
-		response.Body.Close()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to read response body: %w", err)
+		}
+		err = response.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("unable to close response body: %w", err)
 		}
 
 		if !httphelper.IsSuccessResponse(response) {
@@ -87,9 +90,12 @@ func UpdateRecords[T AirtableFields](httpClient *http.Client, request *http.Requ
 	}
 
 	body, err := io.ReadAll(response.Body)
-	response.Body.Close()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read response body: %w", err)
+	}
+	err = response.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("unable to close response body: %w", err)
 	}
 
 	if !httphelper.IsSuccessResponse(response) {
@@ -146,9 +152,12 @@ func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client,
 	}
 
 	responseBody, err := io.ReadAll(response.Body)
-	response.Body.Close()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read response body: %w", err)
+	}
+	err = response.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("unable to close response body: %w", err)
 	}
 
 	if !httphelper.IsSuccessResponse(response) {

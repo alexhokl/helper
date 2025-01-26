@@ -7,7 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	mathrand "math/rand"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -51,7 +51,7 @@ func GetToken(ctx context.Context, config *OAuthConfig, usePKCE bool) (*oauth2.T
 
 	// add transport for self-signed certificate to context
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // #nosec G402
 	}
 	sslcli := &http.Client{Transport: tr}
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, sslcli)
@@ -229,7 +229,8 @@ func getTokenHandler(ctx context.Context, config *oauth2.Config, tokenChannel ch
 
 func getServer(port int) *http.Server {
 	server := &http.Server{
-		Addr: fmt.Sprintf(":%d", port),
+		Addr:              fmt.Sprintf(":%d", port),
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	return server
 }
@@ -243,10 +244,11 @@ func GenerateState(length int) (string, error) {
 }
 
 func GeneratePKCEVerifier() string {
-	generator := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
+
 	b := make([]rune, lengthCodeVerifier)
 	for i := range b {
-		b[i] = letterRunes[generator.Intn(len(letterRunes))]
+		randInt, _ := rand.Int(rand.Reader, big.NewInt(int64(len(letterRunes))))
+		b[i] = letterRunes[randInt.Int64()]
 	}
 	return string(b)
 }

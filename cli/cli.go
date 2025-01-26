@@ -29,7 +29,7 @@ func GetOpenCommand(args ...string) (string, []string) {
 
 func OpenInBrowser(url string) error {
 	cmdName, cmdArgs := GetOpenCommand(url)
-	_, errOpen := exec.Command(cmdName, cmdArgs...).Output()
+	_, errOpen := exec.Command(cmdName, cmdArgs...).Output() // #nosec G204
 	if errOpen != nil {
 		cmdParts := []string{cmdName}
 		cmdParts = append(cmdParts, cmdArgs...)
@@ -66,31 +66,31 @@ func ConfigureViper(configFilePath string, applicationName string, verbose bool,
 	}
 }
 
-/// BindFlagsAndEnvToViper binds the flags and environment variables to viper
-///
-/// Example:
-/// type config struct {
-///   Param1 string `mapstructure:"param1" structs:"param1" env:"PARAM1"`
-/// }
-///
-/// func init() {
-///    rootCmd.AddCommand(listCmd)
-///    flags := listCmd.Flags()
-///    flags.StringVar(&listOpts.format, "format", "Format")
-///    cli.BindFlagsAndEnvToViper(listCmd, listOpts)
-/// }
+// / BindFlagsAndEnvToViper binds the flags and environment variables to viper
+// /
+// / Example:
+// / type config struct {
+// /   Param1 string `mapstructure:"param1" structs:"param1" env:"PARAM1"`
+// / }
+// /
+// / func init() {
+// /    rootCmd.AddCommand(listCmd)
+// /    flags := listCmd.Flags()
+// /    flags.StringVar(&listOpts.format, "format", "Format")
+// /    cli.BindFlagsAndEnvToViper(listCmd, listOpts)
+// / }
 func BindFlagsAndEnvToViper(cmd *cobra.Command, params interface{}) (err error) {
 	for _, field := range structs.Fields(params) {
-        key := field.Tag("structs")
-        env := field.Tag("env")
-        err = viper.BindPFlag(key, cmd.Flags().Lookup(key))
-        if err != nil {
-            return err
-        }
-        err = viper.BindEnv(key, env)
-        if err != nil {
-            return err
-        }
-    }
-    return nil
+		key := field.Tag("structs")
+		env := field.Tag("env")
+		err = viper.BindPFlag(key, cmd.Flags().Lookup(key))
+		if err != nil {
+			return err
+		}
+		err = viper.BindEnv(key, env)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

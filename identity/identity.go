@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/youmark/pkcs8"
@@ -90,6 +91,7 @@ func GetPrivateKey(path string, password string) (*rsa.PrivateKey, error) {
 }
 
 func getPemBlock(path string) (*pem.Block, error) {
+	path = filepath.Clean(path)
 	file, errOpen := os.Open(path)
 	if errOpen != nil {
 		return nil, fmt.Errorf("unable to open file %s with error %w", path, errOpen)

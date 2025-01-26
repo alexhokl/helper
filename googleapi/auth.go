@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"googlemaps.github.io/maps"
@@ -25,9 +26,10 @@ type GoogleClient struct {
 }
 
 func New(ctx context.Context, googleClientSecretFilePath string, accessToken *oauth2.Token, scopes []string) (*GoogleClient, error) {
-	file, errOpen := os.Open(googleClientSecretFilePath)
+	path := filepath.Clean(googleClientSecretFilePath)
+	file, errOpen := os.Open(path)
 	if errOpen != nil {
-		return nil, fmt.Errorf("unable to open file %s with error %w", googleClientSecretFilePath, errOpen)
+		return nil, fmt.Errorf("unable to open file %s with error %w", path, errOpen)
 	}
 	defer file.Close()
 

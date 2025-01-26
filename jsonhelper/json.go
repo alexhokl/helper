@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 // WriteToJSONFile writes the specified object as a JSON file to the specified path
@@ -13,6 +14,7 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 	if path == "" {
 		return fmt.Errorf("path is not specified")
 	}
+	path = filepath.Clean(path)
 	if object == nil {
 		return fmt.Errorf("object cannot be empty")
 	}
@@ -27,7 +29,7 @@ func WriteToJSONFile(path string, object interface{}, isOverwrite bool) error {
 		}
 	}
 
-	file, errOpen := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	file, errOpen := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0600)
 	if errOpen != nil {
 		return errOpen
 	}
@@ -76,4 +78,3 @@ func ParseJSONFromBytes(v interface{}, b []byte) (err error) {
 	}
 	return nil
 }
-
