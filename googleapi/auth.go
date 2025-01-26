@@ -3,8 +3,9 @@ package googleapi
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"googlemaps.github.io/maps"
@@ -24,7 +25,13 @@ type GoogleClient struct {
 }
 
 func New(ctx context.Context, googleClientSecretFilePath string, accessToken *oauth2.Token, scopes []string) (*GoogleClient, error) {
-	fileBytes, errFile := ioutil.ReadFile(googleClientSecretFilePath)
+	file, errOpen := os.Open(googleClientSecretFilePath)
+	if errOpen != nil {
+		return nil, fmt.Errorf("unable to open file %s with error %w", googleClientSecretFilePath, errOpen)
+	}
+	defer file.Close()
+
+	fileBytes, errFile := io.ReadAll(file)
 	if errFile != nil {
 		return nil, errFile
 	}

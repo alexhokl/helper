@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/alexhokl/helper/httphelper"
@@ -52,7 +52,7 @@ func ListRecords[T AirtableFields](httpClient *http.Client, baseID string, table
 			return nil, err
 		}
 
-		body, err := ioutil.ReadAll(response.Body)
+		body, err := io.ReadAll(response.Body)
 		response.Body.Close()
 		if err != nil {
 			return nil, err
@@ -86,7 +86,7 @@ func UpdateRecords[T AirtableFields](httpClient *http.Client, request *http.Requ
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	response.Body.Close()
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client,
 		return nil, err
 	}
 
-	responseBody, err := ioutil.ReadAll(response.Body)
+	responseBody, err := io.ReadAll(response.Body)
 	response.Body.Close()
 	if err != nil {
 		return nil, err

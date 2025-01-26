@@ -5,10 +5,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/youmark/pkcs8"
 )
 
 // GetTokenString retrieves bearer token string from the specified request
@@ -36,14 +38,14 @@ func GetPublicKey(path string) (*rsa.PublicKey, error) {
 
 	key, errParse := x509.ParsePKIXPublicKey(pemBlock.Bytes)
 	if errParse != nil {
-		return nil, fmt.Errorf("Unable to parse pulbic key from file %s with error %w", path, errParse)
+		return nil, fmt.Errorf("unable to parse pulbic key from file %s with error %w", path, errParse)
 	}
 
-	switch key.(type) {
+	switch keyType := key.(type) {
 	case *rsa.PublicKey:
-		return key.(*rsa.PublicKey), nil
+		return keyType, nil
 	default:
-		return nil, fmt.Errorf("Unsupported key type %T", key)
+		return nil, fmt.Errorf("unsupported key type %T", key)
 	}
 }
 
@@ -56,14 +58,14 @@ func GetPublicKeyFromCertificate(path string) (*rsa.PublicKey, error) {
 
 	cert, errParse := x509.ParseCertificate(pemBlock.Bytes)
 	if errParse != nil {
-		return nil, fmt.Errorf("Unable to parse pulbic key from file %s with error %w", path, errParse)
+		return nil, fmt.Errorf("unable to parse pulbic key from file %s with error %w", path, errParse)
 	}
 
 	switch cert.PublicKey.(type) {
 	case *rsa.PublicKey:
 		return cert.PublicKey.(*rsa.PublicKey), nil
 	default:
-		return nil, fmt.Errorf("Unsupported key type %T", cert.PublicKey)
+		return nil, fmt.Errorf("unsupported key type %T", cert.PublicKey)
 	}
 }
 
@@ -74,33 +76,34 @@ func GetPrivateKey(path string, password string) (*rsa.PrivateKey, error) {
 		return nil, errFile
 	}
 
-	decryptedBytes, errDecrpt := x509.DecryptPEMBlock(pemBlock, []byte(password))
+	key, errDecrpt := pkcs8.ParsePKCS8PrivateKey(pemBlock.Bytes, []byte(password))
 	if errDecrpt != nil {
-		return nil, fmt.Errorf("Unable to decrypted key from file %s with error %w", path, errDecrpt)
+		return nil, fmt.Errorf("unable to decrypted key from file %s with error %w", path, errDecrpt)
 	}
 
-	key, errParse := x509.ParsePKCS1PrivateKey(decryptedBytes)
-	if errParse != nil {
-		return nil, fmt.Errorf("Unable to parse private key from file %s with error %w", path, errParse)
+	switch keyType := key.(type) {
+	case *rsa.PrivateKey:
+		return keyType, nil
+	default:
+		return nil, fmt.Errorf("unsupported key type %T", key)
 	}
-	return key, nil
 }
 
 func getPemBlock(path string) (*pem.Block, error) {
 	file, errOpen := os.Open(path)
 	if errOpen != nil {
-		return nil, fmt.Errorf("Unable to open file %s with error %w", path, errOpen)
+		return nil, fmt.Errorf("unable to open file %s with error %w", path, errOpen)
 	}
 	defer file.Close()
 
-	bytes, errRead := ioutil.ReadAll(file)
+	bytes, errRead := io.ReadAll(file)
 	if errRead != nil {
-		return nil, fmt.Errorf("Unable to read file %s with error %w", path, errRead)
+		return nil, fmt.Errorf("unable to read file %s with error %w", path, errRead)
 	}
 
 	block, _ := pem.Decode(bytes)
 	if block == nil {
-		return nil, fmt.Errorf("Unable to decode PEM file %s", path)
+		return nil, fmt.Errorf("unable to decode PEM file %s", path)
 	}
 	return block, nil
 }

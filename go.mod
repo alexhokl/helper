@@ -1,8 +1,6 @@
 module github.com/alexhokl/helper
 
-go 1.22.0
-
-toolchain go1.22.6
+go 1.23.4
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.2
@@ -84,9 +82,9 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/tmc/langchaingo v0.1.12
+	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
-	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect

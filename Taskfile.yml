@@ -15,7 +15,24 @@ tasks:
     cmd: go test --cover ./...
 
   coverage-html:
-    desc: Run unit tests and open coverage report
+    desc: Test with coverage in HTML
+    cmd: go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out -o coverage.html
+
+  open-coverage-html:
+    desc: Test with coverage in HTML and open the HTML
     cmds:
-      - go test -coverprofile=coverage.out ./...
-      - go tool cover -html=coverage.out -o coverage.html
+    - task coverage-html
+    - open coverage.html
+
+  bench:
+    desc: Run benchmarks on CPU and memory
+    cmd: go test -bench=. -benchmem
+
+  lint:
+    desc: Lint
+    cmd: golangci-lint run
+
+  sec:
+    desc: Security check
+    cmd: gosec ./...
+

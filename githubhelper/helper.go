@@ -31,7 +31,7 @@ func NewClient(ctx context.Context, gitHubToken string) (*githubv4.Client, error
 	return client, nil
 }
 
-func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, repoName string, issueNumber int) (*GithubIssue, error) {
+func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, repoName string, issueNumber int32) (*GithubIssue, error) {
 	var query struct {
 		Repository struct {
 			Issue struct {
@@ -63,7 +63,7 @@ func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, re
 	}, nil
 }
 
-func GetProjectID(ctx context.Context, client *githubv4.Client, repoOwner string, projectNumber int) (githubv4.ID, error) {
+func GetProjectID(ctx context.Context, client *githubv4.Client, repoOwner string, projectNumber int32) (githubv4.ID, error) {
 	var query struct {
 		User struct {
 			Project struct {

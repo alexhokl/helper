@@ -146,7 +146,7 @@ func SaveTokenToViper(token *oauth2.Token) error {
 	viper.Set("token_type", token.TokenType)
 	viper.Set("expiry", token.Expiry)
 
-	viper.WriteConfig()
+	_ = viper.WriteConfig()
 
 	return nil
 }

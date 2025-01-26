@@ -1,10 +1,12 @@
 package googleapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 
+	"google.golang.org/api/option"
 	sheets "google.golang.org/api/sheets/v4"
 )
 
@@ -14,8 +16,11 @@ type ColumnFormatConfig interface {
 	ColumnFormat() string
 }
 
-func NewSpreadsheetService(client *http.Client) (*sheets.Service, error) {
-	return sheets.New(client)
+func NewSpreadsheetService(ctx context.Context, client *http.Client) (*sheets.Service, error) {
+	return sheets.NewService(
+		ctx,
+		option.WithHTTPClient(client),
+	)
 }
 
 func CreateSpreadSheet(srv *sheets.Service, documentName string) (*sheets.Spreadsheet, error) {

@@ -13,7 +13,6 @@ import (
 )
 
 const listDefaultMax = 250
-const listNoLimit = 0
 
 func NewCalendarService(ctx context.Context, oauthConfig *oauth2.Config, token *oauth2.Token) (*calendar.Service, error) {
 	httpClient := oauthConfig.Client(ctx, token)
