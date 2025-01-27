@@ -64,3 +64,9 @@ func TestGetDelimitedString(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkGetDelimitedString(t *testing.B) {
+	for i := 0; i < t.N; i++ {
+		GetDelimitedString([]string{"abc", "def"}, ",")
+	}
+}

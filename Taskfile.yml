@@ -26,7 +26,12 @@ tasks:
 
   bench:
     desc: Run benchmarks on CPU and memory
-    cmd: go test -bench=. -benchmem
+    cmd: go test -bench=. -benchmem ./...
+
+  bench-profile:
+    desc: Run benchmarks on CPU and memory and create a profile
+    cmds:
+    - go test -bench=. -benchmem -memprofile ./benchmarks/collection.mem.prof -cpuprofile ./benchmarks/collection.cpu.prof ./collection/
 
   lint:
     desc: Lint
