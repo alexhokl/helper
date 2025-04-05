@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"runtime"
@@ -79,7 +80,7 @@ func ConfigureViper(configFilePath string, applicationName string, verbose bool,
 // /    flags.StringVar(&listOpts.format, "format", "Format")
 // /    cli.BindFlagsAndEnvToViper(listCmd, listOpts)
 // / }
-func BindFlagsAndEnvToViper(cmd *cobra.Command, params interface{}) (err error) {
+func BindFlagsAndEnvToViper(cmd *cobra.Command, params any) (err error) {
 	for _, field := range structs.Fields(params) {
 		key := field.Tag("structs")
 		env := field.Tag("env")
@@ -93,4 +94,13 @@ func BindFlagsAndEnvToViper(cmd *cobra.Command, params interface{}) (err error) 
 		}
 	}
 	return nil
+}
+
+// LogUnableToMarkFlagAsRequired logs an error when unable to mark a flag as required
+func LogUnableToMarkFlagAsRequired(flagName string, err error) {
+	slog.Error(
+		"unable to mark flag as required",
+		slog.String("flag", flagName),
+		slog.String("error", err.Error()),
+	)
 }
