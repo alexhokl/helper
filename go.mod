@@ -1,6 +1,6 @@
 module github.com/alexhokl/helper
 
-go 1.23.4
+go 1.25.5
 
 require (
 	github.com/denisenkom/go-mssqldb v0.12.3
