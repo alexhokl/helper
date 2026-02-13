@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -85,7 +86,7 @@ func GetToken(ctx context.Context, config *OAuthConfig, usePKCE bool) (*oauth2.T
 	ctx = context.WithValue(ctx, codeVerifierContextKey, codeVerifier)
 	ctx = context.WithValue(ctx, codeChallengeContextKey, codeChallenge)
 
-	fmt.Printf("You will now be taken to your browser for authentication [%s]\n\n", url)
+	_, _ = fmt.Fprintf(os.Stdout, "You will now be taken to your browser for authentication [%s]\n\n", url)
 	time.Sleep(1 * time.Second)
 	if err := cli.OpenInBrowser(url); err != nil {
 		return nil, err
@@ -223,7 +224,7 @@ func getTokenHandler(ctx context.Context, config *oauth2.Config, tokenChannel ch
 		}
 
 		tokenChannel <- *token
-		fmt.Fprintf(w, "You have been authenticated. This browser window can be closed.")
+		_, _ = fmt.Fprintf(w, "You have been authenticated. This browser window can be closed.")
 	}
 }
 
