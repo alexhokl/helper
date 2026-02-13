@@ -14,8 +14,26 @@ import (
 
 const defaultMaxRecords = 100
 const contentTypeJSON = "application/json"
-const apiBasePath = "https://api.airtable.com/v0"
+const defaultAPIBasePath = "https://api.airtable.com/v0"
 const defaultOffset = "first_call"
+
+// apiBasePath is the base path for API requests, can be overridden for testing
+var apiBasePath = defaultAPIBasePath
+
+// HTTPDoer is an interface for making HTTP requests (satisfied by *http.Client)
+type HTTPDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// SetAPIBasePath sets the API base path (for testing purposes)
+func SetAPIBasePath(path string) {
+	apiBasePath = path
+}
+
+// ResetAPIBasePath resets the API base path to the default value
+func ResetAPIBasePath() {
+	apiBasePath = defaultAPIBasePath
+}
 
 // UpdateRecordsRequest returns a request to update records of Airtable
 func UpdateRecordsRequest(baseID string, tableName string, patchBody *bytes.Buffer, ctx context.Context) (*http.Request, error) {
@@ -37,7 +55,7 @@ func UpdateRecordsRequest(baseID string, tableName string, patchBody *bytes.Buff
 }
 
 // ListRecords returns a list of records from Airtable
-func ListRecords[T AirtableFields](httpClient *http.Client, baseID string, tableName string, viewName string, ctx context.Context, maxRecords int) ([]*AirtableRecord[T], error) {
+func ListRecords[T AirtableFields](httpClient HTTPDoer, baseID string, tableName string, viewName string, ctx context.Context, maxRecords int) ([]*AirtableRecord[T], error) {
 	var items []*AirtableRecord[T]
 
 	offset := defaultOffset
@@ -83,7 +101,7 @@ func ListRecords[T AirtableFields](httpClient *http.Client, baseID string, table
 }
 
 // UpdateRecords updates records of Airtable and returns the records updated
-func UpdateRecords[T AirtableFields](httpClient *http.Client, request *http.Request) ([]*AirtableRecord[T], error) {
+func UpdateRecords[T AirtableFields](httpClient HTTPDoer, request *http.Request) ([]*AirtableRecord[T], error) {
 	response, err := httpClient.Do(request)
 	if err != nil {
 		return nil, err
@@ -118,7 +136,8 @@ func UpdateRecords[T AirtableFields](httpClient *http.Client, request *http.Requ
 	return items, nil
 }
 
-func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient *http.Client, record *Tin, baseID string, tableName string, ctx context.Context) ([]*AirtableRecord[T], error) {
+// CreateRecord creates a new record in Airtable and returns the created records
+func CreateRecord[Tin AirtableFields, T AirtableFields](httpClient HTTPDoer, record *Tin, baseID string, tableName string, ctx context.Context) ([]*AirtableRecord[T], error) {
 	path := fmt.Sprintf("%s/%s/%s", apiBasePath, baseID, tableName)
 	headers := map[string]string{
 		"Content-Type": contentTypeJSON,
