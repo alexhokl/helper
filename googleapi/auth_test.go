@@ -164,6 +164,127 @@ func TestNewEmptyFile(t *testing.T) {
 	}
 }
 
+func TestNewValidClientSecretFile(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	validJSONPath := filepath.Join(tmpDir, "client_secret.json")
+
+	// Create a valid Google OAuth client secret JSON
+	validJSON := `{
+		"installed": {
+			"client_id": "test-client-id.apps.googleusercontent.com",
+			"client_secret": "test-client-secret",
+			"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+			"token_uri": "https://oauth2.googleapis.com/token",
+			"redirect_uris": ["http://localhost"]
+		}
+	}`
+
+	if err := os.WriteFile(validJSONPath, []byte(validJSON), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	scopes := []string{"https://www.googleapis.com/auth/calendar.readonly"}
+	client, err := New(ctx, validJSONPath, nil, scopes)
+	if err != nil {
+		t.Fatalf("New() with valid client secret error: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("New() returned nil client")
+	}
+
+	if client.Config == nil {
+		t.Fatal("Config should not be nil")
+	}
+
+	if client.Config.ClientID != "test-client-id.apps.googleusercontent.com" {
+		t.Errorf("ClientID = %q, want %q", client.Config.ClientID, "test-client-id.apps.googleusercontent.com")
+	}
+
+	if client.Config.ClientSecret != "test-client-secret" {
+		t.Errorf("ClientSecret = %q, want %q", client.Config.ClientSecret, "test-client-secret")
+	}
+}
+
+func TestNewWithToken(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	validJSONPath := filepath.Join(tmpDir, "client_secret.json")
+
+	validJSON := `{
+		"installed": {
+			"client_id": "test-client-id.apps.googleusercontent.com",
+			"client_secret": "test-client-secret",
+			"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+			"token_uri": "https://oauth2.googleapis.com/token",
+			"redirect_uris": ["http://localhost"]
+		}
+	}`
+
+	if err := os.WriteFile(validJSONPath, []byte(validJSON), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	token := &oauth2.Token{
+		AccessToken:  "test-access-token",
+		RefreshToken: "test-refresh-token",
+	}
+
+	scopes := []string{"https://www.googleapis.com/auth/calendar.readonly"}
+	client, err := New(ctx, validJSONPath, token, scopes)
+	if err != nil {
+		t.Fatalf("New() with token error: %v", err)
+	}
+
+	if client.Token == nil {
+		t.Fatal("Token should not be nil")
+	}
+
+	if client.Token.AccessToken != token.AccessToken {
+		t.Errorf("AccessToken = %q, want %q", client.Token.AccessToken, token.AccessToken)
+	}
+
+	if client.Token.RefreshToken != token.RefreshToken {
+		t.Errorf("RefreshToken = %q, want %q", client.Token.RefreshToken, token.RefreshToken)
+	}
+}
+
+func TestNewWebClientSecretFile(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	validJSONPath := filepath.Join(tmpDir, "client_secret_web.json")
+
+	// Create a valid Google OAuth web client secret JSON
+	validJSON := `{
+		"web": {
+			"client_id": "web-client-id.apps.googleusercontent.com",
+			"client_secret": "web-client-secret",
+			"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+			"token_uri": "https://oauth2.googleapis.com/token",
+			"redirect_uris": ["http://localhost:8080/callback"]
+		}
+	}`
+
+	if err := os.WriteFile(validJSONPath, []byte(validJSON), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	scopes := []string{"https://www.googleapis.com/auth/calendar.readonly"}
+	client, err := New(ctx, validJSONPath, nil, scopes)
+	if err != nil {
+		t.Fatalf("New() with web client secret error: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("New() returned nil client")
+	}
+
+	if client.Config.ClientID != "web-client-id.apps.googleusercontent.com" {
+		t.Errorf("ClientID = %q, want %q", client.Config.ClientID, "web-client-id.apps.googleusercontent.com")
+	}
+}
+
 func TestGoogleClientNewHttpClient(t *testing.T) {
 	ctx := context.Background()
 	clientID := "test-client-id"
@@ -232,5 +353,56 @@ func TestConstants(t *testing.T) {
 	}
 	if callbackUri != "/callback" {
 		t.Errorf("callbackUri = %q, want %q", callbackUri, "/callback")
+	}
+}
+
+func TestNewFromClientIDSecretContext(t *testing.T) {
+	ctx := context.Background()
+	clientID := "test-client-id"
+	clientSecret := "test-client-secret"
+	scopes := []string{"scope1"}
+
+	client, err := NewFromClientIDSecret(ctx, clientID, clientSecret, scopes, nil)
+	if err != nil {
+		t.Fatalf("NewFromClientIDSecret() error: %v", err)
+	}
+
+	if client.Context != ctx {
+		t.Error("Context should be the same as the provided context")
+	}
+}
+
+func TestNewMultipleScopes(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	validJSONPath := filepath.Join(tmpDir, "client_secret.json")
+
+	validJSON := `{
+		"installed": {
+			"client_id": "test-client-id.apps.googleusercontent.com",
+			"client_secret": "test-client-secret",
+			"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+			"token_uri": "https://oauth2.googleapis.com/token",
+			"redirect_uris": ["http://localhost"]
+		}
+	}`
+
+	if err := os.WriteFile(validJSONPath, []byte(validJSON), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	scopes := []string{
+		"https://www.googleapis.com/auth/calendar.readonly",
+		"https://www.googleapis.com/auth/spreadsheets",
+		"https://www.googleapis.com/auth/drive.readonly",
+	}
+
+	client, err := New(ctx, validJSONPath, nil, scopes)
+	if err != nil {
+		t.Fatalf("New() with multiple scopes error: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("New() returned nil client")
 	}
 }

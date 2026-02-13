@@ -2,11 +2,35 @@ package githubhelper
 
 import (
 	"context"
+	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/shurcooL/githubv4"
 )
+
+// mockGraphQLClient is a mock implementation of GraphQLClient for testing
+type mockGraphQLClient struct {
+	queryFunc  func(ctx context.Context, q interface{}, variables map[string]interface{}) error
+	mutateFunc func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error
+}
+
+func (m *mockGraphQLClient) Query(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+	if m.queryFunc != nil {
+		return m.queryFunc(ctx, q, variables)
+	}
+	return nil
+}
+
+func (m *mockGraphQLClient) Mutate(ctx context.Context, mut interface{}, input githubv4.Input, variables map[string]interface{}) error {
+	if m.mutateFunc != nil {
+		return m.mutateFunc(ctx, mut, input, variables)
+	}
+	return nil
+}
 
 func TestNewClient(t *testing.T) {
 	tests := []struct {
@@ -288,5 +312,649 @@ func BenchmarkGithubIssueCreation(b *testing.B) {
 				"Due Date": now,
 			},
 		}
+	}
+}
+
+// ============================================================================
+// Mock-based tests for complete coverage
+// ============================================================================
+
+func TestGetIssue_WithMock(t *testing.T) {
+	tests := []struct {
+		name        string
+		repoOwner   string
+		repoName    string
+		issueNumber int32
+		mockQuery   func(ctx context.Context, q interface{}, variables map[string]interface{}) error
+		wantIssue   *GithubIssue
+		wantErr     bool
+	}{
+		{
+			name:        "successful get issue",
+			repoOwner:   "owner",
+			repoName:    "repo",
+			issueNumber: 42,
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				repo := v.FieldByName("Repository")
+				issue := repo.FieldByName("Issue")
+				issue.FieldByName("ID").SetString("I_kwDOTest123")
+				issue.FieldByName("Number").SetInt(42)
+				issue.FieldByName("Title").SetString("Test Issue")
+				issue.FieldByName("Body").SetString("Test body")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/42")
+				return nil
+			},
+			wantIssue: &GithubIssue{
+				ID:         "I_kwDOTest123",
+				Number:     42,
+				Title:      "Test Issue",
+				Body:       "Test body",
+				URL:        "https://github.com/owner/repo/issues/42",
+				DateFields: map[string]time.Time{},
+			},
+			wantErr: false,
+		},
+		{
+			name:        "query error",
+			repoOwner:   "owner",
+			repoName:    "repo",
+			issueNumber: 999,
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				return errors.New("GraphQL error: Could not resolve to an Issue")
+			},
+			wantIssue: nil,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockGraphQLClient{
+				queryFunc: tt.mockQuery,
+			}
+
+			ctx := context.Background()
+			issue, err := GetIssue(ctx, mock, tt.repoOwner, tt.repoName, tt.issueNumber)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetIssue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantIssue == nil {
+				if issue != nil {
+					t.Errorf("GetIssue() = %v, want nil", issue)
+				}
+				return
+			}
+
+			if issue == nil {
+				t.Errorf("GetIssue() = nil, want %v", tt.wantIssue)
+				return
+			}
+
+			if issue.ID != tt.wantIssue.ID {
+				t.Errorf("GetIssue() ID = %v, want %v", issue.ID, tt.wantIssue.ID)
+			}
+			if issue.Number != tt.wantIssue.Number {
+				t.Errorf("GetIssue() Number = %v, want %v", issue.Number, tt.wantIssue.Number)
+			}
+			if issue.Title != tt.wantIssue.Title {
+				t.Errorf("GetIssue() Title = %v, want %v", issue.Title, tt.wantIssue.Title)
+			}
+		})
+	}
+}
+
+func TestGetProjectID_WithMock(t *testing.T) {
+	tests := []struct {
+		name          string
+		repoOwner     string
+		projectNumber int32
+		mockQuery     func(ctx context.Context, q interface{}, variables map[string]interface{}) error
+		wantID        githubv4.ID
+		wantErr       bool
+	}{
+		{
+			name:          "successful get project ID",
+			repoOwner:     "owner",
+			projectNumber: 1,
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				user := v.FieldByName("User")
+				project := user.FieldByName("Project")
+				project.FieldByName("ID").Set(reflect.ValueOf(githubv4.ID("PVT_kwDOTest123")))
+				return nil
+			},
+			wantID:  githubv4.ID("PVT_kwDOTest123"),
+			wantErr: false,
+		},
+		{
+			name:          "project not found",
+			repoOwner:     "owner",
+			projectNumber: 999,
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				return errors.New("GraphQL error: Could not resolve to a ProjectV2")
+			},
+			wantID:  "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockGraphQLClient{
+				queryFunc: tt.mockQuery,
+			}
+
+			ctx := context.Background()
+			id, err := GetProjectID(ctx, mock, tt.repoOwner, tt.projectNumber)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetProjectID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if id != tt.wantID {
+				t.Errorf("GetProjectID() = %v, want %v", id, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestGetIssuesWithProjectDateFieldValue_WithMock(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID githubv4.ID
+		fieldName string
+		mockQuery func(ctx context.Context, q interface{}, variables map[string]interface{}) error
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:      "successful get issues with date field",
+			projectID: githubv4.ID("PVT_kwDOTest123"),
+			fieldName: "Due Date",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				projectNode := v.FieldByName("ProjectNode")
+				project := projectNode.FieldByName("Project")
+				items := project.FieldByName("Items")
+
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+				pageInfo.FieldByName("EndCursor").Set(reflect.ValueOf(githubv4.String("")))
+
+				nodesField := items.FieldByName("Nodes")
+				nodeType := nodesField.Type().Elem()
+				node := reflect.New(nodeType).Elem()
+
+				node.FieldByName("ID").Set(reflect.ValueOf(githubv4.ID("PVTI_123")))
+
+				contentNode := node.FieldByName("ContentNode")
+				issue := contentNode.FieldByName("Issue")
+				issue.FieldByName("Number").SetInt(42)
+				issue.FieldByName("Title").SetString("Test Issue")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/42")
+				issue.FieldByName("Closed").SetBool(false)
+
+				fieldValueUnion := node.FieldByName("FieldValueUnion")
+				fieldValue := fieldValueUnion.FieldByName("FieldValue")
+				fieldValue.FieldByName("Date").SetString("2024-06-15")
+
+				nodes := reflect.MakeSlice(nodesField.Type(), 1, 1)
+				nodes.Index(0).Set(node)
+				nodesField.Set(nodes)
+
+				return nil
+			},
+			wantCount: 1,
+			wantErr:   false,
+		},
+		{
+			name:      "query error",
+			projectID: githubv4.ID("PVT_invalid"),
+			fieldName: "Due Date",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				return errors.New("GraphQL error: Could not resolve to a node")
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+		{
+			name:      "empty project",
+			projectID: githubv4.ID("PVT_empty"),
+			fieldName: "Due Date",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				projectNode := v.FieldByName("ProjectNode")
+				project := projectNode.FieldByName("Project")
+				items := project.FieldByName("Items")
+
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+				pageInfo.FieldByName("EndCursor").Set(reflect.ValueOf(githubv4.String("")))
+
+				nodesField := items.FieldByName("Nodes")
+				nodes := reflect.MakeSlice(nodesField.Type(), 0, 0)
+				nodesField.Set(nodes)
+
+				return nil
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:      "closed issues filtered out",
+			projectID: githubv4.ID("PVT_closed"),
+			fieldName: "Due Date",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				projectNode := v.FieldByName("ProjectNode")
+				project := projectNode.FieldByName("Project")
+				items := project.FieldByName("Items")
+
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+				pageInfo.FieldByName("EndCursor").Set(reflect.ValueOf(githubv4.String("")))
+
+				nodesField := items.FieldByName("Nodes")
+				nodeType := nodesField.Type().Elem()
+				node := reflect.New(nodeType).Elem()
+
+				node.FieldByName("ID").Set(reflect.ValueOf(githubv4.ID("PVTI_closed")))
+
+				contentNode := node.FieldByName("ContentNode")
+				issue := contentNode.FieldByName("Issue")
+				issue.FieldByName("Number").SetInt(99)
+				issue.FieldByName("Title").SetString("Closed Issue")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/99")
+				issue.FieldByName("Closed").SetBool(true)
+
+				fieldValueUnion := node.FieldByName("FieldValueUnion")
+				fieldValue := fieldValueUnion.FieldByName("FieldValue")
+				fieldValue.FieldByName("Date").SetString("2024-06-15")
+
+				nodes := reflect.MakeSlice(nodesField.Type(), 1, 1)
+				nodes.Index(0).Set(node)
+				nodesField.Set(nodes)
+
+				return nil
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:      "issues without date filtered out",
+			projectID: githubv4.ID("PVT_nodate"),
+			fieldName: "Due Date",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				projectNode := v.FieldByName("ProjectNode")
+				project := projectNode.FieldByName("Project")
+				items := project.FieldByName("Items")
+
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+				pageInfo.FieldByName("EndCursor").Set(reflect.ValueOf(githubv4.String("")))
+
+				nodesField := items.FieldByName("Nodes")
+				nodeType := nodesField.Type().Elem()
+				node := reflect.New(nodeType).Elem()
+
+				node.FieldByName("ID").Set(reflect.ValueOf(githubv4.ID("PVTI_nodate")))
+
+				contentNode := node.FieldByName("ContentNode")
+				issue := contentNode.FieldByName("Issue")
+				issue.FieldByName("Number").SetInt(88)
+				issue.FieldByName("Title").SetString("Issue Without Date")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/88")
+				issue.FieldByName("Closed").SetBool(false)
+
+				fieldValueUnion := node.FieldByName("FieldValueUnion")
+				fieldValue := fieldValueUnion.FieldByName("FieldValue")
+				fieldValue.FieldByName("Date").SetString("")
+
+				nodes := reflect.MakeSlice(nodesField.Type(), 1, 1)
+				nodes.Index(0).Set(node)
+				nodesField.Set(nodes)
+
+				return nil
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:      "invalid date format returns error",
+			projectID: githubv4.ID("PVT_baddate"),
+			fieldName: "Due Date",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				projectNode := v.FieldByName("ProjectNode")
+				project := projectNode.FieldByName("Project")
+				items := project.FieldByName("Items")
+
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+				pageInfo.FieldByName("EndCursor").Set(reflect.ValueOf(githubv4.String("")))
+
+				nodesField := items.FieldByName("Nodes")
+				nodeType := nodesField.Type().Elem()
+				node := reflect.New(nodeType).Elem()
+
+				node.FieldByName("ID").Set(reflect.ValueOf(githubv4.ID("PVTI_baddate")))
+
+				contentNode := node.FieldByName("ContentNode")
+				issue := contentNode.FieldByName("Issue")
+				issue.FieldByName("Number").SetInt(77)
+				issue.FieldByName("Title").SetString("Bad Date Issue")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/77")
+				issue.FieldByName("Closed").SetBool(false)
+
+				fieldValueUnion := node.FieldByName("FieldValueUnion")
+				fieldValue := fieldValueUnion.FieldByName("FieldValue")
+				fieldValue.FieldByName("Date").SetString("not-a-valid-date")
+
+				nodes := reflect.MakeSlice(nodesField.Type(), 1, 1)
+				nodes.Index(0).Set(node)
+				nodesField.Set(nodes)
+
+				return nil
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockGraphQLClient{
+				queryFunc: tt.mockQuery,
+			}
+
+			ctx := context.Background()
+			issues, err := GetIssuesWithProjectDateFieldValue(ctx, mock, tt.projectID, tt.fieldName)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetIssuesWithProjectDateFieldValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if len(issues) != tt.wantCount {
+				t.Errorf("GetIssuesWithProjectDateFieldValue() returned %d issues, want %d", len(issues), tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestGetIssuesWithProjectDateFieldValue_Pagination(t *testing.T) {
+	callCount := 0
+
+	mock := &mockGraphQLClient{
+		queryFunc: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+			callCount++
+			v := reflect.ValueOf(q).Elem()
+			projectNode := v.FieldByName("ProjectNode")
+			project := projectNode.FieldByName("Project")
+			items := project.FieldByName("Items")
+
+			pageInfo := items.FieldByName("PageInfo")
+			nodesField := items.FieldByName("Nodes")
+
+			if callCount == 1 {
+				pageInfo.FieldByName("HasNextPage").SetBool(true)
+				pageInfo.FieldByName("EndCursor").Set(reflect.ValueOf(githubv4.String("cursor1")))
+
+				nodeType := nodesField.Type().Elem()
+				node := reflect.New(nodeType).Elem()
+				node.FieldByName("ID").Set(reflect.ValueOf(githubv4.ID("PVTI_1")))
+
+				contentNode := node.FieldByName("ContentNode")
+				issue := contentNode.FieldByName("Issue")
+				issue.FieldByName("Number").SetInt(1)
+				issue.FieldByName("Title").SetString("Issue 1")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/1")
+				issue.FieldByName("Closed").SetBool(false)
+
+				fieldValueUnion := node.FieldByName("FieldValueUnion")
+				fieldValue := fieldValueUnion.FieldByName("FieldValue")
+				fieldValue.FieldByName("Date").SetString("2024-06-01")
+
+				nodes := reflect.MakeSlice(nodesField.Type(), 1, 1)
+				nodes.Index(0).Set(node)
+				nodesField.Set(nodes)
+			} else {
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+				pageInfo.FieldByName("EndCursor").Set(reflect.ValueOf(githubv4.String("")))
+
+				nodeType := nodesField.Type().Elem()
+				node := reflect.New(nodeType).Elem()
+				node.FieldByName("ID").Set(reflect.ValueOf(githubv4.ID("PVTI_2")))
+
+				contentNode := node.FieldByName("ContentNode")
+				issue := contentNode.FieldByName("Issue")
+				issue.FieldByName("Number").SetInt(2)
+				issue.FieldByName("Title").SetString("Issue 2")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/2")
+				issue.FieldByName("Closed").SetBool(false)
+
+				fieldValueUnion := node.FieldByName("FieldValueUnion")
+				fieldValue := fieldValueUnion.FieldByName("FieldValue")
+				fieldValue.FieldByName("Date").SetString("2024-06-02")
+
+				nodes := reflect.MakeSlice(nodesField.Type(), 1, 1)
+				nodes.Index(0).Set(node)
+				nodesField.Set(nodes)
+			}
+
+			return nil
+		},
+	}
+
+	ctx := context.Background()
+	issues, err := GetIssuesWithProjectDateFieldValue(ctx, mock, githubv4.ID("PVT_test"), "Due Date")
+
+	if err != nil {
+		t.Fatalf("GetIssuesWithProjectDateFieldValue() error = %v", err)
+	}
+
+	if callCount != 2 {
+		t.Errorf("Expected 2 API calls for pagination, got %d", callCount)
+	}
+
+	if len(issues) != 2 {
+		t.Errorf("Expected 2 issues, got %d", len(issues))
+	}
+}
+
+func TestAddComment_WithMock(t *testing.T) {
+	tests := []struct {
+		name       string
+		issueID    string
+		comment    string
+		mockMutate func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error
+		wantErr    bool
+	}{
+		{
+			name:    "successful add comment",
+			issueID: "I_kwDOTest123",
+			comment: "This is a test comment",
+			mockMutate: func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error {
+				return nil
+			},
+			wantErr: false,
+		},
+		{
+			name:    "mutation error",
+			issueID: "I_invalid",
+			comment: "Comment on invalid issue",
+			mockMutate: func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error {
+				return errors.New("GraphQL error: Could not resolve to a node")
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockGraphQLClient{
+				mutateFunc: tt.mockMutate,
+			}
+
+			ctx := context.Background()
+			err := AddComment(ctx, mock, tt.issueID, tt.comment)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("AddComment() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGetLabel_WithMock(t *testing.T) {
+	tests := []struct {
+		name      string
+		repoOwner string
+		repoName  string
+		labelName string
+		mockQuery func(ctx context.Context, q interface{}, variables map[string]interface{}) error
+		wantID    string
+		wantErr   bool
+	}{
+		{
+			name:      "successful get label",
+			repoOwner: "owner",
+			repoName:  "repo",
+			labelName: "bug",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				v := reflect.ValueOf(q).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("LA_kwDOBug123")
+				return nil
+			},
+			wantID:  "LA_kwDOBug123",
+			wantErr: false,
+		},
+		{
+			name:      "label not found",
+			repoOwner: "owner",
+			repoName:  "repo",
+			labelName: "nonexistent",
+			mockQuery: func(ctx context.Context, q interface{}, variables map[string]interface{}) error {
+				return errors.New("GraphQL error: Could not resolve to a Label")
+			},
+			wantID:  "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockGraphQLClient{
+				queryFunc: tt.mockQuery,
+			}
+
+			ctx := context.Background()
+			id, err := GetLabel(ctx, mock, tt.repoOwner, tt.repoName, tt.labelName)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetLabel() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if id != tt.wantID {
+				t.Errorf("GetLabel() = %v, want %v", id, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestSetLabel_WithMock(t *testing.T) {
+	tests := []struct {
+		name       string
+		issueID    string
+		labelID    string
+		mockMutate func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error
+		wantErr    bool
+	}{
+		{
+			name:    "successful set label",
+			issueID: "I_kwDOTest123",
+			labelID: "LA_kwDOBug123",
+			mockMutate: func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error {
+				return nil
+			},
+			wantErr: false,
+		},
+		{
+			name:    "mutation error",
+			issueID: "I_invalid",
+			labelID: "LA_kwDOBug123",
+			mockMutate: func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error {
+				return errors.New("GraphQL error: Could not resolve to a node")
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockGraphQLClient{
+				mutateFunc: tt.mockMutate,
+			}
+
+			ctx := context.Background()
+			err := SetLabel(ctx, mock, tt.issueID, tt.labelID)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SetLabel() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestRemoveLabel_WithMock(t *testing.T) {
+	tests := []struct {
+		name       string
+		issueID    string
+		labelID    string
+		mockMutate func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error
+		wantErr    bool
+	}{
+		{
+			name:    "successful remove label",
+			issueID: "I_kwDOTest123",
+			labelID: "LA_kwDOBug123",
+			mockMutate: func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error {
+				return nil
+			},
+			wantErr: false,
+		},
+		{
+			name:    "mutation error",
+			issueID: "I_invalid",
+			labelID: "LA_kwDOBug123",
+			mockMutate: func(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error {
+				return errors.New("GraphQL error: Could not resolve to a node")
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockGraphQLClient{
+				mutateFunc: tt.mockMutate,
+			}
+
+			ctx := context.Background()
+			err := RemoveLabel(ctx, mock, tt.issueID, tt.labelID)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("RemoveLabel() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

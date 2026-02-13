@@ -390,6 +390,117 @@ func TestNewRowsValueRangeEmpty(t *testing.T) {
 	}
 }
 
+func TestNewRowsValueRangeSingleRow(t *testing.T) {
+	var val1 interface{} = "cell1"
+	var val2 interface{} = 42
+	var val3 interface{} = true
+	rows := [][]interface{}{
+		{&val1, &val2, &val3},
+	}
+	result := newRowsValueRange(rows)
+
+	if result == nil {
+		t.Fatal("Result should not be nil")
+	}
+
+	if len(result.Values) != 1 {
+		t.Fatalf("Values length = %d, want 1", len(result.Values))
+	}
+
+	if len(result.Values[0]) != 3 {
+		t.Fatalf("Values[0] length = %d, want 3", len(result.Values[0]))
+	}
+
+	if result.Values[0][0] != "cell1" {
+		t.Errorf("Values[0][0] = %v, want %q", result.Values[0][0], "cell1")
+	}
+
+	if result.Values[0][1] != "42" {
+		t.Errorf("Values[0][1] = %v, want %q", result.Values[0][1], "42")
+	}
+
+	if result.Values[0][2] != "1" {
+		t.Errorf("Values[0][2] = %v, want %q", result.Values[0][2], "1")
+	}
+}
+
+func TestNewRowsValueRangeMultipleRows(t *testing.T) {
+	var val1 interface{} = "row1col1"
+	var val2 interface{} = "row1col2"
+	var val3 interface{} = "row2col1"
+	var val4 interface{} = "row2col2"
+	var val5 interface{} = "row3col1"
+	var val6 interface{} = "row3col2"
+	rows := [][]interface{}{
+		{&val1, &val2},
+		{&val3, &val4},
+		{&val5, &val6},
+	}
+	result := newRowsValueRange(rows)
+
+	if len(result.Values) != 3 {
+		t.Fatalf("Values length = %d, want 3", len(result.Values))
+	}
+
+	// Check each row has correct values
+	expected := [][]string{
+		{"row1col1", "row1col2"},
+		{"row2col1", "row2col2"},
+		{"row3col1", "row3col2"},
+	}
+
+	for i, row := range result.Values {
+		for j, val := range row {
+			if val != expected[i][j] {
+				t.Errorf("Values[%d][%d] = %v, want %q", i, j, val, expected[i][j])
+			}
+		}
+	}
+}
+
+func TestNewRowsValueRangeWithNil(t *testing.T) {
+	var val1 interface{} = nil
+	var val2 interface{} = "valid"
+	rows := [][]interface{}{
+		{&val1, &val2},
+	}
+	result := newRowsValueRange(rows)
+
+	if result.Values[0][0] != "NULL" {
+		t.Errorf("Values[0][0] = %v, want %q", result.Values[0][0], "NULL")
+	}
+
+	if result.Values[0][1] != "valid" {
+		t.Errorf("Values[0][1] = %v, want %q", result.Values[0][1], "valid")
+	}
+}
+
+func TestNewRowsValueRangeWithTime(t *testing.T) {
+	testTime := time.Date(2023, 6, 15, 14, 30, 45, 123000000, time.UTC)
+	var val interface{} = testTime
+	rows := [][]interface{}{
+		{&val},
+	}
+	result := newRowsValueRange(rows)
+
+	expected := "2023-06-15 14:30:45.123"
+	if result.Values[0][0] != expected {
+		t.Errorf("Values[0][0] = %v, want %q", result.Values[0][0], expected)
+	}
+}
+
+func TestNewRowsValueRangeWithBytes(t *testing.T) {
+	var val interface{} = []byte("binary data")
+	rows := [][]interface{}{
+		{&val},
+	}
+	result := newRowsValueRange(rows)
+
+	if result.Values[0][0] != "binary data" {
+		t.Errorf("Values[0][0] = %v, want %q", result.Values[0][0], "binary data")
+	}
+}
+
 func TestNewColumnFormatRequestNil(t *testing.T) {
 	result := newColumnFormatRequest(123, nil)
 

@@ -3,6 +3,7 @@ package bubbleteahelper
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -109,7 +110,7 @@ func TestSetupLogFilePermissions(t *testing.T) {
 
 	// Ensure we can clean up
 	t.Cleanup(func() {
-		os.Chmod(readOnlyDir, 0755)
+		_ = os.Chmod(readOnlyDir, 0755)
 	})
 
 	logPath := filepath.Join(readOnlyDir, "test.log")
@@ -117,5 +118,98 @@ func TestSetupLogFilePermissions(t *testing.T) {
 	err := SetupLogFile(logPath, "test")
 	if err == nil {
 		t.Error("SetupLogFile() in read-only directory should return error")
+	}
+}
+
+func TestSetupLogFileErrorMessage(t *testing.T) {
+	// Test that error message contains useful information
+	invalidPath := "/nonexistent/directory/path/test.log"
+
+	err := SetupLogFile(invalidPath, "test")
+	if err == nil {
+		t.Fatal("SetupLogFile() with invalid path should return error")
+	}
+
+	if !strings.Contains(err.Error(), "failed to open log file") {
+		t.Errorf("Error message should contain 'failed to open log file', got: %v", err)
+	}
+}
+
+func TestSetupLogFileSpecialCharactersInPrefix(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "test.log")
+
+	// Test with special characters in prefix
+	err := SetupLogFile(logPath, "test-prefix_with.special:chars")
+	if err != nil {
+		t.Fatalf("SetupLogFile() with special characters in prefix error: %v", err)
+	}
+
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		t.Error("SetupLogFile() did not create log file with special prefix")
+	}
+}
+
+func TestSetupLogFileLongPrefix(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "test.log")
+
+	// Test with a long prefix
+	longPrefix := strings.Repeat("a", 1000)
+	err := SetupLogFile(logPath, longPrefix)
+	if err != nil {
+		t.Fatalf("SetupLogFile() with long prefix error: %v", err)
+	}
+
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		t.Error("SetupLogFile() did not create log file with long prefix")
+	}
+}
+
+func TestSetupLogFileMultipleCalls(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Test multiple calls to SetupLogFile with different files
+	for i := 0; i < 5; i++ {
+		logPath := filepath.Join(tmpDir, filepath.Base(t.Name())+string(rune('a'+i))+".log")
+		err := SetupLogFile(logPath, "test")
+		if err != nil {
+			t.Fatalf("SetupLogFile() call %d error: %v", i, err)
+		}
+
+		if _, err := os.Stat(logPath); os.IsNotExist(err) {
+			t.Errorf("SetupLogFile() call %d did not create log file", i)
+		}
+	}
+}
+
+func TestSetupLogFileEmptyPath(t *testing.T) {
+	// Test with empty path
+	err := SetupLogFile("", "test")
+	if err == nil {
+		t.Error("SetupLogFile() with empty path should return error")
+	}
+}
+
+// Benchmark tests
+
+func BenchmarkSetupLogFile(b *testing.B) {
+	tmpDir := b.TempDir()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		logPath := filepath.Join(tmpDir, "bench.log")
+		_ = SetupLogFile(logPath, "bench")
+	}
+}
+
+func BenchmarkSetupLogFileWithLongPrefix(b *testing.B) {
+	tmpDir := b.TempDir()
+	longPrefix := strings.Repeat("prefix", 100)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		logPath := filepath.Join(tmpDir, "bench.log")
+		_ = SetupLogFile(logPath, longPrefix)
 	}
 }

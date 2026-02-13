@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -492,4 +493,403 @@ func BenchmarkHandleErrorResponse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = handleErrorResponse(http.StatusForbidden, body)
 	}
+}
+
+// Tests using httptest for HTTP client functions
+
+func TestListRecords(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse string
+		statusCode     int
+		contentType    string
+		wantErr        bool
+		wantCount      int
+	}{
+		{
+			name: "successful list records",
+			serverResponse: `{
+				"records": [
+					{"id": "rec1", "createdTime": "2023-01-01T00:00:00Z", "fields": {"name": "First", "status": "Active"}},
+					{"id": "rec2", "createdTime": "2023-01-02T00:00:00Z", "fields": {"name": "Second", "status": "Inactive"}}
+				],
+				"offset": ""
+			}`,
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			wantErr:     false,
+			wantCount:   2,
+		},
+		{
+			name:           "empty records",
+			serverResponse: `{"records": [], "offset": ""}`,
+			statusCode:     http.StatusOK,
+			contentType:    "application/json",
+			wantErr:        false,
+			wantCount:      0,
+		},
+		{
+			name:           "error response - unauthorized",
+			serverResponse: `{"error":{"type":"UNAUTHORIZED","message":"Invalid token"}}`,
+			statusCode:     http.StatusUnauthorized,
+			contentType:    "application/json",
+			wantErr:        true,
+			wantCount:      0,
+		},
+		{
+			name:           "error response - rate limited",
+			serverResponse: `{}`,
+			statusCode:     http.StatusTooManyRequests,
+			contentType:    "application/json",
+			wantErr:        true,
+			wantCount:      0,
+		},
+		{
+			name:           "wrong content type",
+			serverResponse: `{"records": []}`,
+			statusCode:     http.StatusOK,
+			contentType:    "text/html",
+			wantErr:        true,
+			wantCount:      0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tt.contentType)
+				w.WriteHeader(tt.statusCode)
+				_, _ = w.Write([]byte(tt.serverResponse))
+			}))
+			defer server.Close()
+
+			// Override the API base path to use test server
+			SetAPIBasePath(server.URL)
+			defer ResetAPIBasePath()
+
+			records, err := ListRecords[APITestFields](server.Client(), "", "", "", nil, 100)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ListRecords() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && len(records) != tt.wantCount {
+				t.Errorf("ListRecords() returned %d records, want %d", len(records), tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestListRecordsPagination(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		callCount++
+
+		if callCount == 1 {
+			// First page with offset
+			_, _ = w.Write([]byte(`{
+				"records": [
+					{"id": "rec1", "createdTime": "2023-01-01T00:00:00Z", "fields": {"name": "First", "status": "Active"}}
+				],
+				"offset": "page2token"
+			}`))
+		} else {
+			// Second page without offset (last page)
+			_, _ = w.Write([]byte(`{
+				"records": [
+					{"id": "rec2", "createdTime": "2023-01-02T00:00:00Z", "fields": {"name": "Second", "status": "Inactive"}}
+				],
+				"offset": ""
+			}`))
+		}
+	}))
+	defer server.Close()
+
+	// Override the API base path to use test server
+	SetAPIBasePath(server.URL)
+	defer ResetAPIBasePath()
+
+	records, err := ListRecords[APITestFields](server.Client(), "", "", "", nil, 100)
+	if err != nil {
+		t.Fatalf("ListRecords() error = %v", err)
+	}
+
+	if len(records) != 2 {
+		t.Errorf("ListRecords() returned %d records, want 2", len(records))
+	}
+
+	if callCount != 2 {
+		t.Errorf("Server called %d times, want 2", callCount)
+	}
+}
+
+func TestListRecordsWithContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"records": [{"id": "rec1", "createdTime": "2023-01-01T00:00:00Z", "fields": {"name": "Test", "status": "Active"}}], "offset": ""}`))
+	}))
+	defer server.Close()
+
+	SetAPIBasePath(server.URL)
+	defer ResetAPIBasePath()
+
+	ctx := context.Background()
+	records, err := ListRecords[APITestFields](server.Client(), "baseID", "tableName", "viewName", ctx, 50)
+
+	if err != nil {
+		t.Fatalf("ListRecords() error = %v", err)
+	}
+
+	if len(records) != 1 {
+		t.Errorf("ListRecords() returned %d records, want 1", len(records))
+	}
+}
+
+func TestListRecordsDefaultMaxRecords(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify maxRecords query parameter defaults to 100
+		maxRecords := r.URL.Query().Get("maxRecords")
+		if maxRecords != "100" {
+			t.Errorf("maxRecords = %q, want %q", maxRecords, "100")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"records": [], "offset": ""}`))
+	}))
+	defer server.Close()
+
+	SetAPIBasePath(server.URL)
+	defer ResetAPIBasePath()
+
+	_, err := ListRecords[APITestFields](server.Client(), "baseID", "tableName", "viewName", nil, 0)
+	if err != nil {
+		t.Fatalf("ListRecords() error = %v", err)
+	}
+}
+
+func TestUpdateRecords(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse string
+		statusCode     int
+		contentType    string
+		wantErr        bool
+		wantCount      int
+	}{
+		{
+			name: "successful update",
+			serverResponse: `{
+				"records": [
+					{"id": "rec1", "createdTime": "2023-01-01T00:00:00Z", "fields": {"name": "Updated", "status": "Active"}}
+				]
+			}`,
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			wantErr:     false,
+			wantCount:   1,
+		},
+		{
+			name: "update multiple records",
+			serverResponse: `{
+				"records": [
+					{"id": "rec1", "createdTime": "2023-01-01T00:00:00Z", "fields": {"name": "First", "status": "A"}},
+					{"id": "rec2", "createdTime": "2023-01-02T00:00:00Z", "fields": {"name": "Second", "status": "B"}}
+				]
+			}`,
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			wantErr:     false,
+			wantCount:   2,
+		},
+		{
+			name:           "error response - forbidden",
+			serverResponse: `{"error":{"type":"FORBIDDEN","message":"Access denied"}}`,
+			statusCode:     http.StatusForbidden,
+			contentType:    "application/json",
+			wantErr:        true,
+			wantCount:      0,
+		},
+		{
+			name:           "error response - not found",
+			serverResponse: `{"error":{"type":"NOT_FOUND","message":"Record not found"}}`,
+			statusCode:     http.StatusNotFound,
+			contentType:    "application/json",
+			wantErr:        true,
+			wantCount:      0,
+		},
+		{
+			name:           "wrong content type",
+			serverResponse: `{"records": []}`,
+			statusCode:     http.StatusOK,
+			contentType:    "text/plain",
+			wantErr:        true,
+			wantCount:      0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tt.contentType)
+				w.WriteHeader(tt.statusCode)
+				_, _ = w.Write([]byte(tt.serverResponse))
+			}))
+			defer server.Close()
+
+			patchBody := bytes.NewBufferString(`{"records":[{"id":"rec1","fields":{"name":"Updated"}}]}`)
+			request, _ := http.NewRequest(http.MethodPatch, server.URL, patchBody)
+			request.Header.Set("Content-Type", "application/json")
+
+			records, err := UpdateRecords[APITestFields](server.Client(), request)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("UpdateRecords() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && len(records) != tt.wantCount {
+				t.Errorf("UpdateRecords() returned %d records, want %d", len(records), tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestCreateRecord(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse string
+		statusCode     int
+		contentType    string
+		wantErr        bool
+		wantCount      int
+	}{
+		{
+			name: "successful create",
+			serverResponse: `{
+				"records": [
+					{"id": "recNew", "createdTime": "2023-06-15T00:00:00Z", "fields": {"name": "New Record", "status": "Active"}}
+				]
+			}`,
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			wantErr:     false,
+			wantCount:   1,
+		},
+		{
+			name:           "error response - unprocessable entity",
+			serverResponse: `{"error":{"type":"INVALID_REQUEST","message":"Invalid field"}}`,
+			statusCode:     http.StatusUnprocessableEntity,
+			contentType:    "application/json",
+			wantErr:        true,
+			wantCount:      0,
+		},
+		{
+			name:           "error response - request too large",
+			serverResponse: `{}`,
+			statusCode:     http.StatusRequestEntityTooLarge,
+			contentType:    "application/json",
+			wantErr:        true,
+			wantCount:      0,
+		},
+		{
+			name:           "wrong content type",
+			serverResponse: `{"records": []}`,
+			statusCode:     http.StatusOK,
+			contentType:    "text/xml",
+			wantErr:        true,
+			wantCount:      0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method
+				if r.Method != http.MethodPost {
+					t.Errorf("Expected POST request, got %s", r.Method)
+				}
+
+				// Verify content type header
+				if r.Header.Get("Content-Type") != "application/json" {
+					t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
+				}
+
+				w.Header().Set("Content-Type", tt.contentType)
+				w.WriteHeader(tt.statusCode)
+				_, _ = w.Write([]byte(tt.serverResponse))
+			}))
+			defer server.Close()
+
+			// Override the API base path to use test server
+			SetAPIBasePath(server.URL)
+			defer ResetAPIBasePath()
+
+			record := &APITestFields{Name: "New Record", Status: "Active"}
+			records, err := CreateRecord[APITestFields, APITestFields](server.Client(), record, "", "", nil)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CreateRecord() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && len(records) != tt.wantCount {
+				t.Errorf("CreateRecord() returned %d records, want %d", len(records), tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestCreateRecordWithContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"records": [{"id": "rec1", "createdTime": "2023-01-01T00:00:00Z", "fields": {"name": "Test", "status": "Active"}}]}`))
+	}))
+	defer server.Close()
+
+	SetAPIBasePath(server.URL)
+	defer ResetAPIBasePath()
+
+	ctx := context.Background()
+	record := &APITestFields{Name: "Test", Status: "Active"}
+	records, err := CreateRecord[APITestFields, APITestFields](server.Client(), record, "baseID", "tableName", ctx)
+
+	if err != nil {
+		t.Fatalf("CreateRecord() error = %v", err)
+	}
+
+	if len(records) != 1 {
+		t.Errorf("CreateRecord() returned %d records, want 1", len(records))
+	}
+}
+
+func TestSetAndResetAPIBasePath(t *testing.T) {
+	// Verify initial state
+	if apiBasePath != defaultAPIBasePath {
+		t.Errorf("Initial apiBasePath = %q, want %q", apiBasePath, defaultAPIBasePath)
+	}
+
+	// Set a custom path
+	customPath := "https://custom.api.com/v1"
+	SetAPIBasePath(customPath)
+
+	if apiBasePath != customPath {
+		t.Errorf("After SetAPIBasePath, apiBasePath = %q, want %q", apiBasePath, customPath)
+	}
+
+	// Reset to default
+	ResetAPIBasePath()
+
+	if apiBasePath != defaultAPIBasePath {
+		t.Errorf("After ResetAPIBasePath, apiBasePath = %q, want %q", apiBasePath, defaultAPIBasePath)
+	}
+}
+
+func TestHTTPDoerInterface(t *testing.T) {
+	// Verify that *http.Client satisfies HTTPDoer interface
+	var _ HTTPDoer = &http.Client{}
 }
