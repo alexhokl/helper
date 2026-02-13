@@ -31,7 +31,9 @@ func New(ctx context.Context, googleClientSecretFilePath string, accessToken *oa
 	if errOpen != nil {
 		return nil, fmt.Errorf("unable to open file %s with error %w", path, errOpen)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	fileBytes, errFile := io.ReadAll(file)
 	if errFile != nil {
