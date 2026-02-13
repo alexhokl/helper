@@ -1,9 +1,13 @@
 package authhelper
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -413,47 +417,6 @@ func TestSaveAndLoadTokenFromViper_RoundTrip(t *testing.T) {
 	}
 	if loadedToken.TokenType != originalToken.TokenType {
 		t.Errorf("TokenType = %v, want %v", loadedToken.TokenType, originalToken.TokenType)
-	}
-}
-
-func TestGetServer(t *testing.T) {
-	tests := []struct {
-		name     string
-		port     int
-		wantAddr string
-	}{
-		{
-			name:     "standard port",
-			port:     8080,
-			wantAddr: ":8080",
-		},
-		{
-			name:     "port 3000",
-			port:     3000,
-			wantAddr: ":3000",
-		},
-		{
-			name:     "high port",
-			port:     65535,
-			wantAddr: ":65535",
-		},
-		{
-			name:     "low port",
-			port:     80,
-			wantAddr: ":80",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := getServer(tt.port)
-			if server.Addr != tt.wantAddr {
-				t.Errorf("getServer() Addr = %v, want %v", server.Addr, tt.wantAddr)
-			}
-			if server.ReadHeaderTimeout != 10*time.Second {
-				t.Errorf("getServer() ReadHeaderTimeout = %v, want %v", server.ReadHeaderTimeout, 10*time.Second)
-			}
-		})
 	}
 }
 
@@ -1078,4 +1041,443 @@ func TestRefreshToken_ValidToken(t *testing.T) {
 	if newToken.AccessToken == "" {
 		t.Error("RefreshToken() returned empty access token")
 	}
+}
+
+// Tests for TokenOptions and functional options
+
+func TestWithBrowserOpener(t *testing.T) {
+	customOpener := func(url string) error {
+		return errors.New("custom opener called")
+	}
+
+	opts := defaultTokenOptions()
+	WithBrowserOpener(customOpener)(opts)
+
+	err := opts.browserOpener("http://example.com")
+	if err == nil || err.Error() != "custom opener called" {
+		t.Errorf("WithBrowserOpener did not set custom opener, got error: %v", err)
+	}
+}
+
+func TestWithOutput(t *testing.T) {
+	var buf bytes.Buffer
+	customOutput := func(w io.Writer, format string, args ...interface{}) (int, error) {
+		return fmt.Fprintf(w, "CUSTOM: "+format, args...)
+	}
+
+	opts := defaultTokenOptions()
+	WithOutput(customOutput)(opts)
+	WithOutputWriter(&buf)(opts)
+
+	_, _ = opts.output(opts.outputWriter, "test %s", "message")
+
+	if !strings.Contains(buf.String(), "CUSTOM: test message") {
+		t.Errorf("WithOutput did not set custom output, got: %s", buf.String())
+	}
+}
+
+func TestWithOutputWriter(t *testing.T) {
+	var buf bytes.Buffer
+
+	opts := defaultTokenOptions()
+	WithOutputWriter(&buf)(opts)
+
+	if opts.outputWriter != &buf {
+		t.Error("WithOutputWriter did not set custom writer")
+	}
+}
+
+func TestWithSleepDuration(t *testing.T) {
+	opts := defaultTokenOptions()
+	WithSleepDuration(500 * time.Millisecond)(opts)
+
+	if opts.sleepDuration != 500*time.Millisecond {
+		t.Errorf("WithSleepDuration did not set duration, got: %v", opts.sleepDuration)
+	}
+}
+
+func TestWithShutdownTimeout(t *testing.T) {
+	opts := defaultTokenOptions()
+	WithShutdownTimeout(10 * time.Second)(opts)
+
+	if opts.shutdownTimeout != 10*time.Second {
+		t.Errorf("WithShutdownTimeout did not set timeout, got: %v", opts.shutdownTimeout)
+	}
+}
+
+func TestDefaultTokenOptions(t *testing.T) {
+	opts := defaultTokenOptions()
+
+	if opts.browserOpener == nil {
+		t.Error("defaultTokenOptions browserOpener is nil")
+	}
+	if opts.output == nil {
+		t.Error("defaultTokenOptions output is nil")
+	}
+	if opts.outputWriter == nil {
+		t.Error("defaultTokenOptions outputWriter is nil")
+	}
+	if opts.sleepDuration != 1*time.Second {
+		t.Errorf("defaultTokenOptions sleepDuration = %v, want 1s", opts.sleepDuration)
+	}
+	if opts.shutdownTimeout != 5*time.Second {
+		t.Errorf("defaultTokenOptions shutdownTimeout = %v, want 5s", opts.shutdownTimeout)
+	}
+}
+
+// Tests for RefreshTokenOptions
+
+func TestWithTokenSourceFactory(t *testing.T) {
+	factoryCalled := false
+	customFactory := func(ctx context.Context, config *oauth2.Config, token *oauth2.Token) oauth2.TokenSource {
+		factoryCalled = true
+		return config.TokenSource(ctx, token)
+	}
+
+	opts := defaultRefreshTokenOptions()
+	WithTokenSourceFactory(customFactory)(opts)
+
+	// Call the factory to verify it was set
+	ctx := context.Background()
+	config := &oauth2.Config{}
+	token := &oauth2.Token{}
+	_ = opts.tokenSourceFactory(ctx, config, token)
+
+	if !factoryCalled {
+		t.Error("WithTokenSourceFactory did not set custom factory")
+	}
+}
+
+func TestDefaultRefreshTokenOptions(t *testing.T) {
+	opts := defaultRefreshTokenOptions()
+
+	if opts.tokenSourceFactory == nil {
+		t.Error("defaultRefreshTokenOptions tokenSourceFactory is nil")
+	}
+}
+
+// Integration tests for GetToken with mocked dependencies
+
+func TestGetToken_FullFlow(t *testing.T) {
+	// Create a mock OAuth server
+	mockServer := newMockOAuthServer(t)
+	defer mockServer.Close()
+
+	// Track if browser was "opened"
+	browserOpenedURL := ""
+	mockBrowserOpener := func(url string) error {
+		browserOpenedURL = url
+		// Simulate the OAuth callback by making a request to our local server
+		// We need to extract the state from the URL and call the callback
+		go func() {
+			// Give the server time to start
+			time.Sleep(50 * time.Millisecond)
+			// Parse the auth URL to get the state
+			// The callback will be made to our local server
+			resp, err := http.Get("http://localhost:19876/callback?state=" + extractState(url) + "&code=test-auth-code")
+			if err != nil {
+				t.Logf("Callback request failed: %v", err)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+		}()
+		return nil
+	}
+
+	// Capture output
+	var outputBuf bytes.Buffer
+
+	config := &OAuthConfig{
+		ClientId:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  mockServer.URL + "/auth",
+			TokenURL: mockServer.URL + "/token",
+		},
+		RedirectURI: "/callback",
+		Port:        19876,
+		Scopes:      []string{"read", "write"},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	token, err := GetToken(ctx, config, false,
+		WithBrowserOpener(mockBrowserOpener),
+		WithOutput(fmt.Fprintf),
+		WithOutputWriter(&outputBuf),
+		WithSleepDuration(0),
+		WithShutdownTimeout(1*time.Second),
+	)
+
+	if err != nil {
+		t.Fatalf("GetToken() error = %v", err)
+	}
+
+	if token == nil {
+		t.Fatal("GetToken() returned nil token")
+	}
+
+	if token.AccessToken != "mock-access-token" {
+		t.Errorf("GetToken() AccessToken = %v, want mock-access-token", token.AccessToken)
+	}
+
+	if browserOpenedURL == "" {
+		t.Error("Browser was not opened")
+	}
+
+	if !strings.Contains(outputBuf.String(), "browser for authentication") {
+		t.Errorf("Expected authentication message in output, got: %s", outputBuf.String())
+	}
+}
+
+func TestGetToken_FullFlowWithPKCE(t *testing.T) {
+	// Create a mock OAuth server
+	mockServer := newMockOAuthServer(t)
+	defer mockServer.Close()
+
+	mockBrowserOpener := func(url string) error {
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			// Extract state and code_challenge from URL for PKCE flow
+			state := extractState(url)
+			codeChallenge := extractParam(url, "code_challenge")
+			callbackURL := fmt.Sprintf("http://localhost:19877/callback?state=%s&code=test-auth-code&code_challenge=%s&code_challenge_method=S256", state, codeChallenge)
+			resp, err := http.Get(callbackURL)
+			if err != nil {
+				t.Logf("Callback request failed: %v", err)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+		}()
+		return nil
+	}
+
+	var outputBuf bytes.Buffer
+
+	config := &OAuthConfig{
+		ClientId:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  mockServer.URL + "/auth",
+			TokenURL: mockServer.URL + "/token",
+		},
+		RedirectURI: "/callback",
+		Port:        19877,
+		Scopes:      []string{"read"},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	token, err := GetToken(ctx, config, true,
+		WithBrowserOpener(mockBrowserOpener),
+		WithOutput(fmt.Fprintf),
+		WithOutputWriter(&outputBuf),
+		WithSleepDuration(0),
+		WithShutdownTimeout(1*time.Second),
+	)
+
+	if err != nil {
+		t.Fatalf("GetToken() with PKCE error = %v", err)
+	}
+
+	if token == nil {
+		t.Fatal("GetToken() with PKCE returned nil token")
+	}
+
+	if token.AccessToken != "mock-access-token" {
+		t.Errorf("GetToken() with PKCE AccessToken = %v, want mock-access-token", token.AccessToken)
+	}
+}
+
+func TestGetToken_BrowserOpenError(t *testing.T) {
+	mockBrowserOpener := func(url string) error {
+		return errors.New("failed to open browser")
+	}
+
+	var outputBuf bytes.Buffer
+
+	config := &OAuthConfig{
+		ClientId:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://example.com/auth",
+			TokenURL: "https://example.com/token",
+		},
+		RedirectURI: "/callback",
+		Port:        19878,
+		Scopes:      []string{"read"},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := GetToken(ctx, config, false,
+		WithBrowserOpener(mockBrowserOpener),
+		WithOutput(fmt.Fprintf),
+		WithOutputWriter(&outputBuf),
+		WithSleepDuration(0),
+		WithShutdownTimeout(1*time.Second),
+	)
+
+	if err == nil {
+		t.Fatal("GetToken() expected error when browser fails to open")
+	}
+
+	if !strings.Contains(err.Error(), "failed to open browser") {
+		t.Errorf("GetToken() error = %v, want error containing 'failed to open browser'", err)
+	}
+}
+
+func TestGetToken_ContextCancellation(t *testing.T) {
+	mockBrowserOpener := func(url string) error {
+		// Don't simulate callback - let context timeout
+		return nil
+	}
+
+	var outputBuf bytes.Buffer
+
+	config := &OAuthConfig{
+		ClientId:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://example.com/auth",
+			TokenURL: "https://example.com/token",
+		},
+		RedirectURI: "/callback",
+		Port:        19879,
+		Scopes:      []string{"read"},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err := GetToken(ctx, config, false,
+		WithBrowserOpener(mockBrowserOpener),
+		WithOutput(fmt.Fprintf),
+		WithOutputWriter(&outputBuf),
+		WithSleepDuration(0),
+		WithShutdownTimeout(100*time.Millisecond),
+	)
+
+	if err == nil {
+		t.Fatal("GetToken() expected error on context cancellation")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("GetToken() error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestGetToken_OAuthServerError(t *testing.T) {
+	// Create a mock OAuth server that returns errors
+	mockServer := newMockOAuthServerWithError(t, "access_denied", "User denied access")
+	defer mockServer.Close()
+
+	mockBrowserOpener := func(url string) error {
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			state := extractState(url)
+			// Simulate OAuth error response
+			callbackURL := fmt.Sprintf("http://localhost:19880/callback?state=%s&error=access_denied&error_description=User%%20denied%%20access", state)
+			resp, err := http.Get(callbackURL)
+			if err != nil {
+				t.Logf("Callback request failed: %v", err)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+		}()
+		return nil
+	}
+
+	var outputBuf bytes.Buffer
+
+	config := &OAuthConfig{
+		ClientId:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  mockServer.URL + "/auth",
+			TokenURL: mockServer.URL + "/token",
+		},
+		RedirectURI: "/callback",
+		Port:        19880,
+		Scopes:      []string{"read"},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := GetToken(ctx, config, false,
+		WithBrowserOpener(mockBrowserOpener),
+		WithOutput(fmt.Fprintf),
+		WithOutputWriter(&outputBuf),
+		WithSleepDuration(0),
+		WithShutdownTimeout(1*time.Second),
+	)
+
+	if err == nil {
+		t.Fatal("GetToken() expected error on OAuth server error")
+	}
+
+	if !strings.Contains(err.Error(), "access_denied") {
+		t.Errorf("GetToken() error = %v, want error containing 'access_denied'", err)
+	}
+}
+
+func TestRefreshToken_WithCustomTokenSource(t *testing.T) {
+	expectedToken := &oauth2.Token{
+		AccessToken:  "custom-refreshed-token",
+		RefreshToken: "custom-new-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(1 * time.Hour),
+	}
+
+	customFactory := func(ctx context.Context, config *oauth2.Config, token *oauth2.Token) oauth2.TokenSource {
+		return oauth2.StaticTokenSource(expectedToken)
+	}
+
+	ctx := context.Background()
+	config := &oauth2.Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+	}
+	oldToken := &oauth2.Token{
+		AccessToken:  "old-token",
+		RefreshToken: "old-refresh",
+		Expiry:       time.Now().Add(-1 * time.Hour),
+	}
+
+	newToken, err := RefreshToken(ctx, config, oldToken,
+		WithTokenSourceFactory(customFactory),
+	)
+
+	if err != nil {
+		t.Fatalf("RefreshToken() error = %v", err)
+	}
+
+	if newToken.AccessToken != "custom-refreshed-token" {
+		t.Errorf("RefreshToken() AccessToken = %v, want custom-refreshed-token", newToken.AccessToken)
+	}
+}
+
+// Helper functions for extracting URL parameters
+
+func extractState(url string) string {
+	return extractParam(url, "state")
+}
+
+func extractParam(url string, param string) string {
+	// Simple extraction - find param= and extract value until & or end
+	search := param + "="
+	idx := strings.Index(url, search)
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len(search)
+	end := strings.Index(url[start:], "&")
+	if end == -1 {
+		return url[start:]
+	}
+	return url[start : start+end]
 }

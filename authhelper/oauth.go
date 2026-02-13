@@ -10,12 +10,9 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/alexhokl/helper/cli"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
@@ -37,7 +34,12 @@ var (
 	codeChallengeContextKey codeChallengeKey
 )
 
-func GetToken(ctx context.Context, config *OAuthConfig, usePKCE bool) (*oauth2.Token, error) {
+func GetToken(ctx context.Context, config *OAuthConfig, usePKCE bool, opts ...TokenOption) (*oauth2.Token, error) {
+	options := defaultTokenOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	if config.ClientId == "" {
 		return nil, fmt.Errorf("client_id is not configured")
 	}
@@ -80,59 +82,82 @@ func GetToken(ctx context.Context, config *OAuthConfig, usePKCE bool) (*oauth2.T
 		)
 	}
 
-	url := oAuthConfig.AuthCodeURL(state, authOpts...)
+	authURL := oAuthConfig.AuthCodeURL(state, authOpts...)
 
 	ctx = context.WithValue(ctx, stateContextKey, state)
 	ctx = context.WithValue(ctx, codeVerifierContextKey, codeVerifier)
 	ctx = context.WithValue(ctx, codeChallengeContextKey, codeChallenge)
 
-	_, _ = fmt.Fprintf(os.Stdout, "You will now be taken to your browser for authentication [%s]\n\n", url)
-	time.Sleep(1 * time.Second)
-	if err := cli.OpenInBrowser(url); err != nil {
-		return nil, err
+	_, _ = options.output(options.outputWriter, "You will now be taken to your browser for authentication [%s]\n\n", authURL)
+	if options.sleepDuration > 0 {
+		time.Sleep(options.sleepDuration)
 	}
-	time.Sleep(1 * time.Second)
+	if err := options.browserOpener(authURL); err != nil {
+		return nil, fmt.Errorf("failed to open browser: %w", err)
+	}
+	if options.sleepDuration > 0 {
+		time.Sleep(options.sleepDuration)
+	}
 
-	var token oauth2.Token
-	var err error
-	tokenDone := &sync.WaitGroup{}
 	tokenChannel := make(chan oauth2.Token, 1)
 	errorChannel := make(chan error, 1)
-	serverErrorChannel := make(chan error, 1)
+
+	// Use a dedicated ServeMux instead of the global http.DefaultServeMux
+	mux := http.NewServeMux()
 	callbackHandler := getTokenHandler(ctx, oAuthConfig, tokenChannel, errorChannel)
-	http.HandleFunc(config.RedirectURI, callbackHandler)
-	server := getServer(config.Port)
-	go func(tokens chan oauth2.Token) {
-		for t := range tokens {
-			token = t
-			tokenDone.Done()
-			return
-		}
-	}(tokenChannel)
-	go func(errs chan error) {
-		for e := range errs {
-			err = e
-			tokenDone.Done()
-			return
-		}
-	}(errorChannel)
-	tokenDone.Add(1)
+	mux.HandleFunc(config.RedirectURI, callbackHandler)
+
+	server := &http.Server{
+		Addr:              fmt.Sprintf(":%d", config.Port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	// Channel to signal when we should shut down
+	done := make(chan struct{})
+
+	// Start the server in a goroutine
 	go func() {
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			serverErrorChannel <- err
+			errorChannel <- fmt.Errorf("server error: %w", err)
 		}
-		tokenDone.Done()
 	}()
-	tokenDone.Wait()
 
-	return &token, err
+	// Wait for token or error
+	var token *oauth2.Token
+	var err error
+
+	select {
+	case t := <-tokenChannel:
+		token = &t
+	case e := <-errorChannel:
+		err = e
+	case <-ctx.Done():
+		err = ctx.Err()
+	}
+
+	// Graceful shutdown
+	close(done)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), options.shutdownTimeout)
+	defer cancel()
+	if shutdownErr := server.Shutdown(shutdownCtx); shutdownErr != nil {
+		// Log shutdown error but don't override the main error
+		_, _ = options.output(options.outputWriter, "Warning: server shutdown error: %v\n", shutdownErr)
+	}
+
+	return token, err
 }
 
-func RefreshToken(ctx context.Context, config *oauth2.Config, token *oauth2.Token) (*oauth2.Token, error) {
-	tokenSource := config.TokenSource(ctx, token)
+func RefreshToken(ctx context.Context, config *oauth2.Config, token *oauth2.Token, opts ...RefreshTokenOption) (*oauth2.Token, error) {
+	options := defaultRefreshTokenOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	tokenSource := options.tokenSourceFactory(ctx, config, token)
 	newToken, err := tokenSource.Token()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve a new token from refresh token: %v", err)
+		return nil, fmt.Errorf("failed to retrieve a new token from refresh token: %w", err)
 	}
 	return newToken, nil
 }
@@ -226,14 +251,6 @@ func getTokenHandler(ctx context.Context, config *oauth2.Config, tokenChannel ch
 		tokenChannel <- *token
 		_, _ = fmt.Fprintf(w, "You have been authenticated. This browser window can be closed.")
 	}
-}
-
-func getServer(port int) *http.Server {
-	server := &http.Server{
-		Addr:              fmt.Sprintf(":%d", port),
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	return server
 }
 
 func GenerateState(length int) (string, error) {
