@@ -9,6 +9,13 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// GraphQLClient defines the interface for GitHub GraphQL operations
+type GraphQLClient interface {
+	Query(ctx context.Context, q interface{}, variables map[string]interface{}) error
+	Mutate(ctx context.Context, m interface{}, input githubv4.Input, variables map[string]interface{}) error
+}
+
+// GithubIssue represents a GitHub issue with optional project date fields
 type GithubIssue struct {
 	ID         string
 	Number     int
@@ -18,6 +25,7 @@ type GithubIssue struct {
 	DateFields map[string]time.Time
 }
 
+// NewClient creates a new GitHub GraphQL client with the provided token
 func NewClient(ctx context.Context, gitHubToken string) (*githubv4.Client, error) {
 	if gitHubToken == "" {
 		return nil, fmt.Errorf("GitHub token is not set")
@@ -31,7 +39,8 @@ func NewClient(ctx context.Context, gitHubToken string) (*githubv4.Client, error
 	return client, nil
 }
 
-func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, repoName string, issueNumber int32) (*GithubIssue, error) {
+// GetIssue retrieves a GitHub issue by repository owner, name, and issue number
+func GetIssue(ctx context.Context, client GraphQLClient, repoOwner string, repoName string, issueNumber int32) (*GithubIssue, error) {
 	var query struct {
 		Repository struct {
 			Issue struct {
@@ -63,7 +72,8 @@ func GetIssue(ctx context.Context, client *githubv4.Client, repoOwner string, re
 	}, nil
 }
 
-func GetProjectID(ctx context.Context, client *githubv4.Client, repoOwner string, projectNumber int32) (githubv4.ID, error) {
+// GetProjectID retrieves a GitHub project ID by owner login and project number
+func GetProjectID(ctx context.Context, client GraphQLClient, repoOwner string, projectNumber int32) (githubv4.ID, error) {
 	var query struct {
 		User struct {
 			Project struct {
@@ -82,7 +92,9 @@ func GetProjectID(ctx context.Context, client *githubv4.Client, repoOwner string
 	return query.User.Project.ID, nil
 }
 
-func GetIssuesWithProjectDateFieldValue(ctx context.Context, client *githubv4.Client, projectID githubv4.ID, fieldName string) ([]GithubIssue, error) {
+// GetIssuesWithProjectDateFieldValue retrieves all open issues from a project
+// that have a value for the specified date field
+func GetIssuesWithProjectDateFieldValue(ctx context.Context, client GraphQLClient, projectID githubv4.ID, fieldName string) ([]GithubIssue, error) {
 	var query struct {
 		ProjectNode struct {
 			Project struct {
@@ -150,7 +162,8 @@ func GetIssuesWithProjectDateFieldValue(ctx context.Context, client *githubv4.Cl
 	return issues, nil
 }
 
-func AddComment(ctx context.Context, client *githubv4.Client, issueID string, comment string) error {
+// AddComment adds a comment to a GitHub issue
+func AddComment(ctx context.Context, client GraphQLClient, issueID string, comment string) error {
 	var mutation struct {
 		AddComment struct {
 			ClientMutationID string
@@ -168,7 +181,8 @@ func AddComment(ctx context.Context, client *githubv4.Client, issueID string, co
 	return nil
 }
 
-func GetLabel(ctx context.Context, client *githubv4.Client, repoOwner string, repoName string, labelName string) (string, error) {
+// GetLabel retrieves a label ID by repository owner, name, and label name
+func GetLabel(ctx context.Context, client GraphQLClient, repoOwner string, repoName string, labelName string) (string, error) {
 	var query struct {
 		Repository struct {
 			Label struct {
@@ -189,7 +203,8 @@ func GetLabel(ctx context.Context, client *githubv4.Client, repoOwner string, re
 	return query.Repository.Label.ID, nil
 }
 
-func SetLabel(ctx context.Context, client *githubv4.Client, issueID string, labelID string) error {
+// SetLabel adds a label to a GitHub issue
+func SetLabel(ctx context.Context, client GraphQLClient, issueID string, labelID string) error {
 	var mutation struct {
 		AddLabelsToLabelable struct {
 			ClientMutationID string
@@ -207,7 +222,8 @@ func SetLabel(ctx context.Context, client *githubv4.Client, issueID string, labe
 	return nil
 }
 
-func RemoveLabel(ctx context.Context, client *githubv4.Client, issueID string, labelID string) error {
+// RemoveLabel removes a label from a GitHub issue
+func RemoveLabel(ctx context.Context, client GraphQLClient, issueID string, labelID string) error {
 	var mutation struct {
 		RemoveLabelsFromLabelable struct {
 			ClientMutationID string
