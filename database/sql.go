@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // TableData struct
@@ -42,7 +42,7 @@ func GetPostgresConnection(config *PostgresConfig) (*sql.DB, error) {
 		Host:     config.Server,
 		RawQuery: parameters.Encode(),
 	}
-	return sql.Open("postgres", connectionURL.String())
+	return sql.Open("pgx", connectionURL.String())
 }
 
 // GetData returns data retrieved by using query with conn

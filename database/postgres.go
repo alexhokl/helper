@@ -26,8 +26,8 @@ func GetDatabaseDailector(pathDatabaseConnectionString string) (gorm.Dialector, 
 
 func GetDatabaseDialectorFromConnection(conn *sql.DB) gorm.Dialector {
 	return postgres.New(postgres.Config{
-		Conn: conn,
-		DriverName: "postgres",
+		Conn:       conn,
+		DriverName: "pgx",
 	})
 }
 
