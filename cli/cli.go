@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -47,14 +48,14 @@ func ConfigureViper(configFilePath string, applicationName string, verbose bool,
 	if configFilePath != "" {
 		viper.SetConfigFile(configFilePath)
 	} else {
-		home, err := os.UserHomeDir()
+		configDir, err := os.UserConfigDir()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		viper.AddConfigPath(home)
-		viper.SetConfigName(fmt.Sprintf(".%s", applicationName))
+		viper.AddConfigPath(filepath.Join(configDir, applicationName))
+		viper.SetConfigName("config")
 	}
 
 	viper.SetEnvPrefix(environmentVariablePrefix)
