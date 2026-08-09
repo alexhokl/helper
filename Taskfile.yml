@@ -21,8 +21,8 @@ tasks:
   open-coverage-html:
     desc: Test with coverage in HTML and open the HTML
     cmds:
-    - task coverage-html
-    - open coverage.html
+      - task coverage-html
+      - open coverage.html
 
   bench:
     desc: Run benchmarks on CPU and memory
@@ -31,7 +31,7 @@ tasks:
   bench-profile:
     desc: Run benchmarks on CPU and memory and create a profile
     cmds:
-    - go test -bench=. -benchmem -memprofile ./benchmarks/collection.mem.prof -cpuprofile ./benchmarks/collection.cpu.prof ./collection/
+      - go test -bench=. -benchmem -memprofile ./benchmarks/collection.mem.prof -cpuprofile ./benchmarks/collection.cpu.prof ./collection/
 
   lint:
     desc: Lint
@@ -41,3 +41,14 @@ tasks:
     desc: Security check
     cmd: gosec ./...
 
+  tag:
+    desc: Create a new git tag with incremented patch version (0.1.x)
+    silent: true
+    cmds:
+      - |
+        LATEST=$(git tag --sort=-version:refname | grep -E '^v0\.0\.[0-9]+$' | head -1)
+        PATCH=$(echo "$LATEST" | cut -d. -f3)
+        if [ -z "$PATCH" ]; then PATCH=-1; fi
+        NEW_TAG="v0.0.$((PATCH + 1))"
+        git tag "$NEW_TAG"
+        echo "Created tag $NEW_TAG"
